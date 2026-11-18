@@ -335,10 +335,10 @@ function PaperCard({
                   <Chip tone="gray">Not started</Chip>
                 ) : ev.submitted ? (
                   <Chip tone="green" icon={Lock}>
-                    Submitted · {evalTotal(ev)}/50
+                    Submitted{isChair && ` · ${evalTotal(ev)}/50`}
                   </Chip>
                 ) : (
-                  <Chip tone="amber">Draft · {evalTotal(ev)}/50</Chip>
+                  <Chip tone="amber">Draft{isChair && ` · ${evalTotal(ev)}/50`}</Chip>
                 )}
                 {isChair && canEdit && ev?.submitted === true && (
                   <Button variant="ghost" size="sm" onClick={() => onUnlock(m, ev.id)} title="Unlock so the member can edit">
@@ -352,12 +352,14 @@ function PaperCard({
         })}
       </ul>
 
-      <p className="mt-3 border-t border-line pt-2 text-sm text-ink-muted">
-        Presentation: <span className="font-medium text-ink">{fmtScore(presentation)}/50</span> · Review:{' '}
-        <span className={`font-medium ${paper.reviewScore == null ? 'text-orange-600 dark:text-orange-400' : 'text-ink'}`}>
-          {fmtScore(paper.reviewScore)}/50
-        </span>
-      </p>
+      {isChair && (
+        <p className="mt-3 border-t border-line pt-2 text-sm text-ink-muted">
+          Presentation: <span className="font-medium text-ink">{fmtScore(presentation)}/50</span> · Review:{' '}
+          <span className={`font-medium ${paper.reviewScore == null ? 'text-orange-600 dark:text-orange-400' : 'text-ink'}`}>
+            {fmtScore(paper.reviewScore)}/50
+          </span>
+        </p>
+      )}
     </Card>
   );
 }
