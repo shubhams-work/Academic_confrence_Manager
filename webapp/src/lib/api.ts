@@ -9,6 +9,7 @@ import type {
   Paper,
   PaperDraftJson,
   Profile,
+  ResetSummary,
   ReviewScoreDraft,
   ScoreRow,
   StaffInvite,
@@ -66,6 +67,12 @@ export interface Api {
   addStaffInvite(email: string, role: AppRole): Promise<void>;
   removeStaffInvite(email: string): Promise<void>;
   staffProfiles(): Promise<Profile[]>;
+  /** Grant or revoke a signed-up user's permission to run the training reset. */
+  setResetAccess(email: string, enabled: boolean): Promise<void>;
+
+  // ---------- Training reset ----------
+  /** Clears evaluations, panels/members and review scores. Papers are kept. */
+  resetTrainingData(confirmPhrase: string): Promise<ResetSummary>;
 
   // ---------- Panel members (bulk) ----------
   bulkCreateMembers(rows: MemberDraft[]): Promise<BulkCreateMembersResult>;

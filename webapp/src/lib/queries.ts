@@ -4,7 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { getApi, type BulkCreateMembersResult, type MemberDraft } from './api';
-import type { AppRole, PanelMemberInput } from './types';
+import type { AppRole, PanelMemberInput, ResetSummary } from './types';
 import type { PaperDraftJson, ReviewScoreDraft } from './importParse';
 
 // ---------- Query keys ----------
@@ -213,6 +213,34 @@ export function useRemoveStaffInvite(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (email: string) => getApi().removeStaffInvite(email),
     onSuccess: () => invalidateLists(qc, ['staff-invites', 'staff-profiles']),
+  });
+}
+
+export function useSetResetAccess(): UseMutationResult<void, Error, { email: string; enabled: boolean }> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, enabled }: { email: string; enabled: boolean }) =>
+      getApi().setResetAccess(email, enabled),
+    onSuccess: () => invalidateLists(qc, ['staff-profiles', 'profile']),
+  });
+}
+
+/** Wipes evaluations, panels/members and review scores, then refetches everything. */
+export function useResetTrainingData(): UseMutationResult<ResetSummary, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (confirmPhrase: string) => getApi().resetTrainingData(confirmPhrase),
+    onSuccess: () =>
+      invalidateLists(qc, [
+        'tracks',
+        'papers',
+        'my-papers',
+        'panels',
+        'panel',
+        'panel-member-suggestions',
+        'live-scores',
+        'finalized-scores',
+      ]),
   });
 }
 

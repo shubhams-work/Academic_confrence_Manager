@@ -3,7 +3,7 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Outlet, createBrowserRouter, RouterProvider, useLocation, useRouteError, type RouteObject } from 'react-router';
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardCheck, FileText, Trophy, Upload, UserCog, UserPlus, Users } from 'lucide-react';
+import { ClipboardCheck, FileText, RotateCcw, Trophy, Upload, UserCog, UserPlus, Users } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { useAuth } from './lib/auth';
 import { AppShell } from './components/AppShell';
@@ -35,23 +35,29 @@ const inchargeNav: Destination[] = [
 
 const memberNav: Destination[] = [{ path: '/my-papers', label: 'My Papers', icon: ClipboardCheck }];
 
-export function navFor(role: AppRole): Destination[] {
-  switch (role) {
-    case 'organizing_chair':
-      return chairNav;
-    case 'session_incharge':
-      return inchargeNav;
-    case 'panel_member':
-      return memberNav;
-  }
+// Only shown while the Organizing Chair has granted profiles.can_reset_data.
+const trainingReset: Destination = { path: '/training-reset', label: 'Reset', icon: RotateCcw };
+
+export function navFor(role: AppRole, canResetData = false): Destination[] {
+  const base = (() => {
+    switch (role) {
+      case 'organizing_chair':
+        return chairNav;
+      case 'session_incharge':
+        return inchargeNav;
+      case 'panel_member':
+        return memberNav;
+    }
+  })();
+  return canResetData ? [...base, trainingReset] : base;
 }
 
 export function homeFor(role: AppRole): string {
   return navFor(role)[0]!.path;
 }
 
-function allowed(role: AppRole, path: string): boolean {
-  return navFor(role).some((d) => path === d.path || path.startsWith(d.path + '/'));
+function allowed(role: AppRole, path: string, canResetData: boolean): boolean {
+  return navFor(role, canResetData).some((d) => path === d.path || path.startsWith(d.path + '/'));
 }
 
 // ---------- Lazy pages ----------
@@ -69,6 +75,7 @@ const Members = lazy(() => import('./pages/panels/Members'));
 const MyPapers = lazy(() => import('./pages/member/MyPapers'));
 const Score = lazy(() => import('./pages/member/Score'));
 const Results = lazy(() => import('./pages/results/Results'));
+const TrainingReset = lazy(() => import('./pages/chair/TrainingReset'));
 
 function LazyPage({ children }: { children: ReactNode }): React.JSX.Element {
   return <Suspense fallback={<PageSpinner />}>{children}</Suspense>;
@@ -167,11 +174,12 @@ function ShellRoute(): React.JSX.Element {
   if (!auth.signedIn) return <Navigate to="/login" replace />;
   if (auth.recoveringPassword) return <Navigate to="/reset-password" replace />;
   if (auth.role == null) return <Navigate to="/not-authorized" replace />;
-  if (!allowed(auth.role, location.pathname)) {
+  const canResetData = auth.profile?.canResetData === true;
+  if (!allowed(auth.role, location.pathname, canResetData)) {
     return <Navigate to={homeFor(auth.role)} replace />;
   }
   return (
-    <AppShell nav={navFor(auth.role)}>
+    <AppShell nav={navFor(auth.role, canResetData)}>
       <Outlet />
     </AppShell>
   );
@@ -260,6 +268,14 @@ export const routes: RouteObject[] = [
             element: (
               <LazyPage>
                 <Results />
+              </LazyPage>
+            ),
+          },
+          {
+            path: '/training-reset',
+            element: (
+              <LazyPage>
+                <TrainingReset />
               </LazyPage>
             ),
           },

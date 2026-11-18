@@ -1,8 +1,14 @@
 ﻿import { useMemo, useState, type FormEvent } from 'react';
-import { Badge, BadgeCheck, Info, Star, Trash2, UserPlus } from 'lucide-react';
-import { useAddStaffInvite, useRemoveStaffInvite, useStaffInvites, useStaffProfiles } from '../../lib/queries';
+import { Badge, BadgeCheck, Info, RotateCcw, Star, Trash2, UserPlus } from 'lucide-react';
+import {
+  useAddStaffInvite,
+  useRemoveStaffInvite,
+  useSetResetAccess,
+  useStaffInvites,
+  useStaffProfiles,
+} from '../../lib/queries';
 import { friendlyError } from '../../lib/api';
-import { roleLabel, type AppRole, type StaffInvite } from '../../lib/types';
+import { roleLabel, type AppRole, type Profile, type StaffInvite } from '../../lib/types';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
@@ -25,12 +31,14 @@ export default function Staff() {
   const profiles = useStaffProfiles();
   const addInvite = useAddStaffInvite();
   const removeInvite = useRemoveStaffInvite();
+  const setResetAccess = useSetResetAccess();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AppRole>('session_incharge');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<StaffInvite | null>(null);
+  const [resetTarget, setResetTarget] = useState<Profile | null>(null);
 
   const signedUp = useMemo(
     () => new Map((profiles.data ?? []).map((p) => [p.email, p])),
@@ -68,6 +76,29 @@ export default function Staff() {
           closeInvite();
         },
         onError: (err) => toast.error(friendlyError(err)),
+      },
+    );
+  };
+
+  const onResetAccessConfirmed = () => {
+    const p = resetTarget;
+    if (p == null) return;
+    const enabled = !p.canResetData;
+    setResetAccess.mutate(
+      { email: p.email, enabled },
+      {
+        onSuccess: () => {
+          toast.success(
+            enabled
+              ? `${p.email} can now reset all event data`
+              : `Reset access removed from ${p.email}`,
+          );
+          setResetTarget(null);
+        },
+        onError: (err) => {
+          toast.error(friendlyError(err));
+          setResetTarget(null);
+        },
       },
     );
   };
@@ -154,7 +185,7 @@ export default function Staff() {
                     </button>
                   )}
                 </div>
-                <div className="mt-2 pl-14">
+                <div className="mt-2 flex flex-wrap items-center gap-2 pl-14">
                   {profile != null ? (
                     <Chip tone="green">
                       <BadgeCheck size={12} />
@@ -162,6 +193,21 @@ export default function Staff() {
                     </Chip>
                   ) : (
                     <Chip tone="orange">Not signed up</Chip>
+                  )}
+                  {profile?.canResetData === true && (
+                    <Chip tone="red">
+                      <RotateCcw size={12} />
+                      Can reset all data
+                    </Chip>
+                  )}
+                  {profile != null && (
+                    <Button
+                      size="sm"
+                      variant={profile.canResetData ? 'danger' : 'outline'}
+                      onClick={() => setResetTarget(profile)}
+                    >
+                      {profile.canResetData ? 'Revoke reset access' : 'Allow training reset'}
+                    </Button>
                   )}
                 </div>
               </Card>
@@ -216,6 +262,30 @@ export default function Staff() {
           </Field>
         </form>
       </Sheet>
+
+      {/* Reset-access confirm */}
+      <ConfirmDialog
+        open={resetTarget != null}
+        title={
+          resetTarget == null
+            ? ''
+            : resetTarget.canResetData
+              ? `Revoke reset access for ${resetTarget.email}?`
+              : `Allow ${resetTarget.email} to reset all event data?`
+        }
+        message={
+          resetTarget == null
+            ? ''
+            : resetTarget.canResetData
+              ? 'The Reset tab disappears for them and the reset will be refused by the server. Do this before the real event.'
+              : 'They get a Reset tab that deletes every evaluation, panel, panel member and review score across all tracks, for everyone. Grant this only for a rehearsal, and revoke it before the event.'
+        }
+        confirmLabel={resetTarget?.canResetData === true ? 'Revoke' : 'Allow'}
+        destructive={resetTarget?.canResetData !== true}
+        busy={setResetAccess.isPending}
+        onConfirm={onResetAccessConfirmed}
+        onCancel={() => setResetTarget(null)}
+      />
 
       {/* Remove confirm */}
       <ConfirmDialog

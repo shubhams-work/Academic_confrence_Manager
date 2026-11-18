@@ -15,6 +15,7 @@ import type {
   Paper,
   PaperDraftJson,
   Profile,
+  ResetSummary,
   ReviewScoreDraft,
   ScoreRow,
   StaffInvite,
@@ -44,6 +45,15 @@ interface ProfileRow {
   full_name?: string | null;
   phone?: string | null;
   role?: AppRole | null;
+  can_reset_data?: boolean | null;
+}
+
+interface ResetSummaryRow {
+  evaluations?: number | null;
+  panels?: number | null;
+  panel_members?: number | null;
+  review_scores?: number | null;
+  tracks_reopened?: number | null;
 }
 
 interface TrackRow {
@@ -142,6 +152,7 @@ function mapProfile(j: ProfileRow): Profile {
     fullName: j.full_name ?? '',
     phone: j.phone ?? null,
     role: j.role ?? null,
+    canResetData: j.can_reset_data === true,
   };
 }
 
@@ -433,6 +444,30 @@ export class SupabaseApi implements Api {
   async removeStaffInvite(email: string): Promise<void> {
     const { error } = await getSupabase().from('staff_invites').delete().eq('email', email);
     if (error) throw new Error(error.message);
+  }
+
+  // ---------- Training reset ----------
+  async setResetAccess(email: string, enabled: boolean): Promise<void> {
+    const { error } = await getSupabase().rpc('set_reset_access', {
+      p_email: email.trim().toLowerCase(),
+      p_enabled: enabled,
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  async resetTrainingData(confirmPhrase: string): Promise<ResetSummary> {
+    const { data, error } = await getSupabase().rpc('reset_training_data', {
+      p_confirm: confirmPhrase,
+    });
+    if (error) throw new Error(error.message);
+    const j = (data ?? {}) as ResetSummaryRow;
+    return {
+      evaluations: j.evaluations ?? 0,
+      panels: j.panels ?? 0,
+      panelMembers: j.panel_members ?? 0,
+      reviewScores: j.review_scores ?? 0,
+      tracksReopened: j.tracks_reopened ?? 0,
+    };
   }
 
   async staffProfiles(): Promise<Profile[]> {

@@ -18,6 +18,20 @@ export interface Profile {
   fullName: string;
   phone?: string | null;
   role: AppRole | null;
+  /** May run the training reset (granted/revoked by the Organizing Chair). */
+  canResetData: boolean;
+}
+
+/** Typed by hand to confirm a training reset; also checked server-side. */
+export const RESET_CONFIRM_PHRASE = 'RESET TRAINING DATA';
+
+/** What a training reset cleared. */
+export interface ResetSummary {
+  evaluations: number;
+  panels: number;
+  panelMembers: number;
+  reviewScores: number;
+  tracksReopened: number;
 }
 
 export interface Track {
