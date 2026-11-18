@@ -1,0 +1,18 @@
+# Netlify build settings for the webapp (a Vite SPA in webapp/).
+#
+# publish is relative to base, so this publishes webapp/dist.
+# SPA routing and caching come from webapp/public/_redirects and _headers,
+# which Vite copies into dist as-is.
+#
+# The two VITE_SUPABASE_* variables are read at BUILD time and baked into the
+# bundle, so they must be set in the Netlify UI (Site configuration ->
+# Environment variables). They are not in the repo: webapp/.env.local is
+# git-ignored.
+
+[build]
+  base = "webapp"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
