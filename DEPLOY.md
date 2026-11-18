@@ -102,6 +102,35 @@ Result: two URLs — e.g. `conf-eval-train.pages.dev` (practice) and your real
 time" is simply handing out the real URL.** The real site build is unchanged
 (`npm run build` with the Supabase vars set, per section 5).
 
+## 5c. Deploying on Netlify (free tier) — real site + demo subdomain
+
+Two Netlify sites from this one repo. Both use the same repo and the same
+`webapp/public/_redirects` (`/* /index.html 200`) so client-side routing works
+on refresh/deep links. Only the build command and the env vars differ — so set
+those in each site's UI; do **not** add a `netlify.toml` (it would force the
+same build command on both sites).
+
+**Real site** — New site → import this repo, then in *Site settings → Build & deploy*:
+- Base directory: `webapp`
+- Build command: `npm run build`
+- Publish directory: `webapp/dist`
+- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+- Custom domain: your main domain.
+
+**Training (demo) site** — New site → same repo again, then:
+- Base directory: `webapp`
+- Build command: `npm run build:demo`
+- Publish directory: `webapp/dist`
+- Environment variables: **none** (this is what keeps real data unreachable).
+- Custom domain: `demo.yourdomain` (Domain management → Add a domain → one CNAME).
+
+After deploying, in Supabase → **Authentication → URL Configuration**, set Site URL
+and Redirect URLs to the **real** domain only. The demo site never calls Supabase,
+so it does not go in that list.
+
+Updates: push to the repo; Netlify rebuilds both sites. Users get the new version
+on refresh.
+
 ## 6. Build the Android APK
 
 ```bash
