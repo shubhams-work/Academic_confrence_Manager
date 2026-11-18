@@ -1,15 +1,18 @@
-import { useRef, useState, type ChangeEvent } from 'react';
-import { CloudUpload, Download, FolderOpen, Users } from 'lucide-react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { CloudUpload, Download, FolderOpen, UserPlus, Users } from 'lucide-react';
 import { useBulkCreateMembers } from '../../lib/queries';
-import { friendlyError, type BulkCreateMembersResult } from '../../lib/api';
+import { friendlyError, type BulkCreateMembersResult, type MemberDraft } from '../../lib/api';
 import { parseMembers, type MemberImportResult } from '../../lib/membersImport';
 import { credentialsWorkbook, membersTemplate, readSheetRows } from '../../lib/excel';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Chip } from '../../components/Chip';
+import { Field, Input } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
 import { IssuesList } from '../chair/parts/IssuesList';
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
  * Chair + Incharge: bulk-create panel-member accounts from an .xlsx upload.
@@ -26,6 +29,13 @@ export default function Members(): React.JSX.Element {
   const [parsed, setParsed] = useState<MemberImportResult | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<BulkCreateMembersResult | null>(null);
+
+  // Manual single-member form.
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [affiliation, setAffiliation] = useState('');
+  const [manualErrors, setManualErrors] = useState<{ name?: string; email?: string }>({});
 
   const busy = parsing || bulk.isPending;
 
@@ -80,6 +90,48 @@ export default function Members(): React.JSX.Element {
     await download(() => credentialsWorkbook(result.credentials));
   };
 
+  const clearManual = (): void => {
+    setName('');
+    setEmail('');
+    setPhone('');
+    setAffiliation('');
+    setManualErrors({});
+  };
+
+  const addOne = (e: FormEvent): void => {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    const errs: { name?: string; email?: string } = {};
+    if (trimmedName === '') errs.name = 'Name is required';
+    if (trimmedEmail === '') errs.email = 'Email is required';
+    else if (!EMAIL_RE.test(trimmedEmail)) errs.email = 'Enter a valid email';
+    setManualErrors(errs);
+    if (errs.name != null || errs.email != null) return;
+
+    const draft: MemberDraft = {
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: phone.trim() === '' ? null : phone.trim(),
+      affiliation: affiliation.trim() === '' ? null : affiliation.trim(),
+    };
+    bulk.mutate([draft], {
+      onSuccess: (out) => {
+        setResult(out);
+        const cred = out.credentials[0];
+        if (cred?.status === 'created') {
+          toast.success(`Account created for ${trimmedEmail}`);
+          clearManual();
+        } else if (cred?.status === 'exists') {
+          toast.error(`${trimmedEmail} already has an account`);
+        } else {
+          toast.error(cred?.note ?? 'Could not create the account');
+        }
+      },
+      onError: (err) => toast.error(friendlyError(err)),
+    });
+  };
+
   return (
     <div className="max-w-3xl flex flex-col gap-4">
       <input
@@ -92,10 +144,70 @@ export default function Members(): React.JSX.Element {
         onChange={(e) => void onFile(e)}
       />
 
+      {/* 1. Manual: add a single panel member and generate their login. */}
+      <Card className="p-4">
+        <div className="flex items-center gap-2">
+          <UserPlus size={20} className="text-primary shrink-0" />
+          <h3 className="text-base font-semibold">Add a panel member</h3>
+        </div>
+        <p className="mt-2 text-xs text-ink-muted">
+          Enter one member's details to create their sign-in account. A password is generated on
+          save — download it afterwards and share it with that member. We do not keep a copy.
+        </p>
+        <form className="mt-3 flex flex-col gap-3" onSubmit={addOne} noValidate>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" required error={manualErrors.name}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+                placeholder="Dr. Jane Doe"
+              />
+            </Field>
+            <Field label="Email" required error={manualErrors.email}>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+                placeholder="jane@example.edu"
+              />
+            </Field>
+            <Field label="Phone" hint="Optional">
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+                inputMode="tel"
+              />
+            </Field>
+            <Field label="Affiliation" hint="Optional">
+              <Input
+                value={affiliation}
+                onChange={(e) => setAffiliation(e.target.value)}
+                autoComplete="off"
+                disabled={busy}
+                placeholder="Institution / College"
+              />
+            </Field>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:justify-end">
+            <Button type="submit" className="w-full sm:w-auto" loading={bulk.isPending} disabled={busy}>
+              <UserPlus size={16} />
+              Create account
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* 2. Bulk: upload an .xlsx of many members. */}
       <Card className="p-4">
         <div className="flex items-center gap-2">
           <Users size={20} className="text-primary shrink-0" />
-          <h3 className="text-base font-semibold">Add panel members</h3>
+          <h3 className="text-base font-semibold">Add panel members in bulk</h3>
         </div>
         <p className="mt-2 text-xs text-ink-muted">
           Upload an .xlsx with one row per panel member. Columns: <strong>Name</strong>,{' '}
