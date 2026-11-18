@@ -1,10 +1,11 @@
-﻿import { useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { CloudUpload, Download, FileSpreadsheet, FolderOpen, ClipboardCheck } from 'lucide-react';
+﻿import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { CloudUpload, Download, FileSpreadsheet, FolderOpen, ClipboardCheck, Save } from 'lucide-react';
 import { useImportPapers, useImportReviewScores, usePapers, useTracks } from '../../lib/queries';
 import { friendlyError } from '../../lib/api';
 import {
   parsePapers,
   parseReviewScores,
+  ReviewScoreDraft,
   type PaperImportResult,
   type ReviewImportResult,
 } from '../../lib/importParse';
@@ -18,10 +19,13 @@ import { fmtScore } from '../../lib/scoring';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Chip } from '../../components/Chip';
+import { Field, Input, Select } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
 import { useToast } from '../../components/Toast';
 import { IssuesList } from './parts/IssuesList';
 import { QueryError } from './parts/QueryError';
+
+const MAX_REVIEW_SCORE = 50;
 
 /** Chair: upload papers/authors and review scores from Excel
  *  (port of import_page.dart). The Excel libraries are only loaded when a
@@ -43,6 +47,17 @@ export default function Import() {
   const [reviewResult, setReviewResult] = useState<ReviewImportResult | null>(null);
   const [parsingReviews, setParsingReviews] = useState(false);
   const [unknownIds, setUnknownIds] = useState<{ updated: number; unknown: string[] } | null>(null);
+
+  // Manual single review-score entry.
+  const [manualPid, setManualPid] = useState('');
+  const [manualScore, setManualScore] = useState('');
+  const [manualErrors, setManualErrors] = useState<{ pid?: string; score?: string }>({});
+
+  const sortedPapers = useMemo(
+    () => [...(allPapers.data ?? [])].sort((a, b) => a.pid.localeCompare(b.pid)),
+    [allPapers.data],
+  );
+  const selectedPaper = sortedPapers.find((p) => p.pid === manualPid) ?? null;
 
   const trackList = useMemo(
     () => [...(tracks.data ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -135,6 +150,32 @@ export default function Import() {
         }
       },
       onError: (e) => toast.error(friendlyError(e)),
+    });
+  };
+
+  const saveManualReview = (e: FormEvent) => {
+    e.preventDefault();
+    const pid = manualPid.trim();
+    const score = Number(manualScore);
+    const errs: { pid?: string; score?: string } = {};
+    if (pid === '') errs.pid = 'Select a paper';
+    if (manualScore.trim() === '' || Number.isNaN(score)) errs.score = 'Enter a score';
+    else if (score < 0 || score > MAX_REVIEW_SCORE) errs.score = `Must be 0–${MAX_REVIEW_SCORE}`;
+    setManualErrors(errs);
+    if (errs.pid != null || errs.score != null) return;
+
+    importReviews.mutate([new ReviewScoreDraft(pid, score, 0)], {
+      onSuccess: (out) => {
+        if (out.unknown.length === 0) {
+          toast.success(`Review score for ${pid} saved`);
+          setManualPid('');
+          setManualScore('');
+          setManualErrors({});
+        } else {
+          toast.error(`${pid} was not found`);
+        }
+      },
+      onError: (err) => toast.error(friendlyError(err)),
     });
   };
 
@@ -281,6 +322,58 @@ export default function Import() {
           only the Review Score column. Blank rows are silently skipped, so you can re-upload later
           with the remaining scores.
         </p>
+
+        {/* Manual single-paper entry. */}
+        <form className="mt-3 flex flex-col gap-3 rounded-lg border border-gray-200 dark:border-gray-800 p-3" onSubmit={saveManualReview}>
+          <p className="text-xs font-medium text-ink">Add a score for one paper</p>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            <Field label="Paper" error={manualErrors.pid}>
+              <Select
+                value={manualPid}
+                onChange={(e) => setManualPid(e.target.value)}
+                disabled={busy || sortedPapers.length === 0}
+              >
+                <option value="">
+                  {sortedPapers.length === 0 ? 'No papers yet' : 'Select a paper…'}
+                </option>
+                {sortedPapers.map((p) => (
+                  <option key={p.id} value={p.pid} title={p.title}>
+                    {p.pid}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={`Score / ${MAX_REVIEW_SCORE}`} error={manualErrors.score}>
+              <Input
+                type="number"
+                min={0}
+                max={MAX_REVIEW_SCORE}
+                step={0.5}
+                inputMode="decimal"
+                value={manualScore}
+                onChange={(e) => setManualScore(e.target.value)}
+                disabled={busy}
+                className="sm:w-28"
+              />
+            </Field>
+            <Button type="submit" className="w-full sm:w-auto" loading={importReviews.isPending} disabled={busy}>
+              <Save size={16} />
+              Save score
+            </Button>
+          </div>
+          {selectedPaper != null && (
+            <div className="text-xs text-ink-muted">
+              <p className="line-clamp-2 break-words font-medium text-ink">{selectedPaper.title}</p>
+              <p className="mt-0.5">
+                Current review score:{' '}
+                {selectedPaper.reviewScore == null
+                  ? '—'
+                  : `${fmtScore(selectedPaper.reviewScore)}/${MAX_REVIEW_SCORE}`}
+              </p>
+            </div>
+          )}
+        </form>
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
