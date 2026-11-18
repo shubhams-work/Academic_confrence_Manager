@@ -1,0 +1,18 @@
+{
+  "name": "COSMIC 2026 · Conference Evaluation",
+  "short_name": "COSMIC Eval",
+  "description": "Evaluate presented papers at the conference.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf7f0",
+  "theme_color": "#805d00",
+  "icons": [
+    {
+      "src": "/COSMIC-LOGO.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

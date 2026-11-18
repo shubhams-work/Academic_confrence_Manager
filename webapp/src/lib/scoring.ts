@@ -1,0 +1,39 @@
+// Pure scoring rules. The database view `paper_scores` implements the same
+// rules in SQL; these functions mirror them for the UI and unit tests.
+// Port of ../lib/core/scoring.dart — keep in sync.
+
+export function roundTo(v: number, places: number): number {
+  const f = Math.pow(10, places);
+  return Math.round(v * f) / f;
+}
+
+/**
+ * Average of the submitted panel-member totals (each out of 50).
+ * Returns null when nobody has submitted yet.
+ */
+export function presentationScore(submittedTotals: Iterable<number>): number | null {
+  const list = [...submittedTotals];
+  if (list.length === 0) return null;
+  const avg = list.reduce((a, b) => a + b, 0) / list.length;
+  return roundTo(avg, 2);
+}
+
+/** Presentation (/50) + Review (/50) = Final (/100). Missing parts count as 0. */
+export function finalScore(presentation: number | null, review: number | null): number {
+  return roundTo((presentation ?? 0) + (review ?? 0), 2);
+}
+
+/** Dense rank, highest score first: [80, 75, 75, 60] -> [1, 2, 2, 3]. */
+export function denseRank(scores: number[]): number[] {
+  const distinct = [...new Set(scores)].sort((a, b) => b - a);
+  const rankOf = new Map<number, number>();
+  distinct.forEach((s, i) => rankOf.set(s, i + 1));
+  return scores.map((s) => rankOf.get(s)!);
+}
+
+/** Formats 40 as "40" and 40.5 as "40.5". */
+export function fmtScore(v: number | null): string {
+  if (v == null) return '—';
+  if (v === Math.round(v)) return String(Math.round(v));
+  return v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}

@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* COSMIC-inspired theme: warm near-black surfaces, gold primary. Light mode
+   stays soft-cream with gold accents so the brand carries across both. */
+@theme inline {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-gold: #facc15;
+  --color-gold-soft: #fde68a;
+  --color-gold-deep: #b8860b;
+}
+
+:root {
+  /* Light mode: warm ivory canvas, deep ink, gold accent. */
+  --page: #faf7f0;
+  --surface: #ffffff;
+  --surface-2: #fbf6e7;
+  --muted: #f1ead5;
+  --line: #e7dfc5;
+  --ink: #1a140a;
+  --ink-muted: #6b5f3e;
+  /* Darker gold keeps small labels readable while retaining COSMIC branding. */
+  --primary: #805d00;
+  --primary-fg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark mode mirrors cosmic.sahyadri.edu.in — warm near-black + gold. */
+    --page: #0b0906;
+    --surface: #141009;
+    --surface-2: #1c1710;
+    --muted: #241d13;
+    --line: #2e2618;
+    --ink: #f8f4e6;
+    --ink-muted: #a89d7e;
+    --primary: #facc15;    /* yellow-400, matches cosmic primary */
+    --primary-fg: #1a140a;
+  }
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-page text-ink antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Shared gradient title used in hero sections (gold → cream). */
+.cosmic-gradient-text {
+  background-image: linear-gradient(to right, #ca8a04, #facc15, #fef3c7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Hero backdrop: tiled bg.png darkened by a page-tinted gradient. */
+.cosmic-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.cosmic-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/bg.png');
+  background-size: cover;
+  background-position: center;
+  z-index: -2;
+  opacity: 0.6;
+}
+.cosmic-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--page) 70%, transparent),
+    color-mix(in srgb, var(--page) 85%, transparent),
+    var(--page)
+  );
+  z-index: -1;
+}
+
+/* Horizontal chip rows scroll without a visible scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
