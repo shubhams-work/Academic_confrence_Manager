@@ -1,5 +1,5 @@
-// All data access used by the screens. Implemented by SupabaseApi (real
-// backend) and DemoApi (in-memory sample data). Port of ../lib/core/repository.dart.
+// All data access used by the screens. Implemented by SupabaseApi.
+// Port of ../lib/core/repository.dart.
 
 import type {
   AppRole,
@@ -14,10 +14,7 @@ import type {
   StaffInvite,
   Track,
 } from './types';
-import { isDemo } from './config';
 import { SupabaseApi } from './supabaseApi';
-import { DemoApi } from './demo/demoApi';
-import { getDemoStore } from './demo/seed';
 
 export interface Api {
   // ---------- Reference data ----------
@@ -107,10 +104,10 @@ export interface BulkCreateMembersResult {
 
 let instance: Api | null = null;
 
-/** The shared Api instance (Supabase, or the demo backend in demo mode). */
+/** The shared Api instance. */
 export function getApi(): Api {
   if (!instance) {
-    instance = isDemo ? new DemoApi(getDemoStore()) : new SupabaseApi();
+    instance = new SupabaseApi();
   }
   return instance as Api;
 }

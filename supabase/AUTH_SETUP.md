@@ -10,9 +10,9 @@ Run all commands from the repo root unless a step says otherwise.
 ## Prerequisites (one time)
 
 1. **Node.js 20 or newer.** Check with `node --version`.
-2. **Install the script dependencies.** The seed script runs through `tsx` and imports `@supabase/supabase-js`:
+2. **Install the script dependencies.** The root `package.json` exists only for these admin scripts (`tsx`, `@types/node`, `@supabase/supabase-js`). From the repo root:
    ```bash
-   npm i -D tsx @supabase/supabase-js
+   npm install
    ```
 3. **Install the Supabase CLI** (needed only for deploying the Edge Function). Follow the official install guide for Windows, then confirm with:
    ```bash
@@ -110,7 +110,7 @@ The function allows up to 200 rows per call. Each row needs a `name` and a valid
 
 ## Security notes
 
-- **The service-role key must never ship to the browser.** It belongs only in the environment of `seed_accounts.ts` (run on your own machine) and in the Edge Function's environment (set by Supabase). Never put it in Flutter or web code, in a `.env` file that gets bundled, or in a public repo. Anyone with this key has full database access.
+- **The service-role key must never ship to the browser.** It belongs only in the environment of `seed_accounts.ts` (run on your own machine) and in the Edge Function's environment (set by Supabase). Never put it in the web app code, in a `.env` file that gets bundled, or in a public repo. Anyone with this key has full database access.
 - The anon key is safe to embed in client apps. The service-role key is not.
 - **Disable email signups.** In the Supabase dashboard, open **Authentication → Providers → Email** (or **Authentication → Sign In / Providers**, depending on the dashboard version) and turn off **Allow new users to sign up**. This stops anyone from creating an account on their own.
 - Keep `supabase/credentials.csv` out of git. Add it to `.gitignore` if it is not already listed.

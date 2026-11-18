@@ -67,17 +67,6 @@ export default function Login(): React.JSX.Element {
     }
   }
 
-  async function demoSignIn(accountEmail: string): Promise<void> {
-    setBusy(true);
-    try {
-      await auth.signIn(accountEmail, 'demo');
-    } catch (err) {
-      toast(friendlyError(err), { error: true });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="cosmic-hero flex min-h-dvh items-center justify-center p-6 text-ink">
       <div className="w-full max-w-md">
@@ -157,29 +146,6 @@ export default function Login(): React.JSX.Element {
             Forgot password?
           </button>
         </div>
-
-        {auth.isDemo && (
-          <div className="mt-6 rounded-xl border border-primary/30 bg-primary/5 p-3">
-            <h2 className="text-sm font-semibold">Demo accounts</h2>
-            <p className="mt-1 text-xs text-ink-muted">
-              Tap an account to sign in. Any password works in demo mode.
-            </p>
-            <div className="mt-3 space-y-2">
-              {auth.demoAccounts.map(([label, accountEmail]) => (
-                <button
-                  key={accountEmail}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void demoSignIn(accountEmail)}
-                  className="flex w-full flex-col items-start rounded-lg border border-line bg-surface px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-50"
-                >
-                  <span className="font-medium">{label}</span>
-                  <span className="text-xs text-ink-muted">{accountEmail}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Forgot-password dialog */}

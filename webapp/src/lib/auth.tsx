@@ -1,5 +1,5 @@
 // Signed-in state + profile (role). The router listens to this to redirect
-// between login / role home screens. Supabase or demo implementation.
+// between login / role home screens.
 // Port of ../lib/core/auth_controller.dart (incl. ?token_hash=&type=
 // email-link handling via supabase.auth.verifyOtp).
 
@@ -13,10 +13,7 @@ import {
 import type { Session } from '@supabase/supabase-js';
 import type { AppRole, Profile } from './types';
 import { getApi } from './api';
-import { isDemo } from './config';
 import { getSupabase } from './supabaseApi';
-import { DemoAuth } from './demo/demoApi';
-import { getDemoStore } from './demo/seed';
 
 export interface AuthSnapshot {
   loading: boolean;
@@ -28,9 +25,6 @@ export interface AuthSnapshot {
   error: unknown;
   /** One-off message for the login screen (e.g. "Email confirmed"). */
   notice: string | null;
-  isDemo: boolean;
-  /** Demo mode only: quick sign-in accounts as [label, email]. */
-  demoAccounts: [string, string][];
 }
 
 export interface AuthController {
@@ -83,8 +77,6 @@ class SupabaseAuthController implements AuthController {
       recoveringPassword: this.recovering,
       error: this.error,
       notice: this.notice,
-      isDemo: false,
-      demoAccounts: [],
     };
   }
 
@@ -209,7 +201,7 @@ function authMessage(m: string): string {
 const AuthCtx = createContext<AuthController | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const ctrl = useMemo<AuthController>(() => (isDemo ? new DemoAuth(getDemoStore()) : new SupabaseAuthController()), []);
+  const ctrl = useMemo<AuthController>(() => new SupabaseAuthController(), []);
   return <AuthCtx.Provider value={ctrl}>{children}</AuthCtx.Provider>;
 }
 

@@ -2,10 +2,10 @@
 
 You are building a **mobile-first website** for evaluating presented papers at an academic conference.
 About **100 people use it at the same time, mostly on phones over mobile data**, so it must be **light, fast and smooth**.
-It replaces an earlier Flutter app in this repo. Use the Flutter code **only as a behaviour reference**. Do not modify it.
+It replaced an earlier Flutter app, which has since been removed from the repo; this app is now the only client.
 
 ## Hard rules
-- Work **only inside `webapp/`**. Never edit `lib/`, `supabase/`, `android/`, `ios/`, `web/`, `test/` or root files.
+- Work **only inside `webapp/`**. Never edit `supabase/` or root files.
 - Do **not** run git commands (no commits).
 - The database is final: [`../supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql). Use its tables, views and RPCs exactly as defined; don't invent new ones.
 - **The repo path contains `&`** (`Confrence-eval&management tool`). On Windows, `npm run …` / `npx …` .cmd shims may break because of it. If they do, run tools directly with node, e.g. `node node_modules/vite/bin/vite.js build`, `node node_modules/vitest/vitest.mjs run`, `node node_modules/typescript/bin/tsc -p . --noEmit`.
@@ -50,8 +50,8 @@ Roles (`profiles.role`): `organizing_chair`, `session_incharge`, `panel_member`.
 
 Routing guard: still loading → spinner. Signed out → `/login`. Signed in with no role → `/not-authorized`. A URL the role can't use → that role's home. Password-recovery link → `/reset-password`.
 
-Behaviour reference (Flutter, read only): `../lib/features/**`, `../lib/app.dart`.
-- **Login** (`login_page.dart`): Sign in / Sign up toggle. Sign-up asks for full name, phone, email and password (≥ 8 characters). "Forgot password" sends a reset link. If sign-up needs email confirmation, tell the user to check their inbox. **In demo mode, show a "Demo accounts" card with one-tap sign-in buttons**, plus a hint that `incharge2@demo.edu`, `prakash@demo.edu` and `vikram@demo.edu` can try sign-up.
+Screen behaviour:
+- **Login**: Sign in / Sign up toggle. Sign-up asks for full name, phone, email and password (≥ 8 characters). "Forgot password" sends a reset link. If sign-up needs email confirmation, tell the user to check their inbox.
 - **Not authorized**: shows the user's email, explains that the organizers must add exactly this email, and offers "Check again" (refresh profile) and Sign out.
 - **Reset password**: new password + repeat.
 - **Papers (Chair)**: track filter chips ("All" plus the 5 tracks; finalized tracks show a lock), search by ID, title or author. Each card shows PID · title, author names, and chips for the track, review score (or "Review: —" in orange) and panel (or "No panel"). Tap → edit form. A "+" button adds a paper.
@@ -90,20 +90,19 @@ main.tsx            QueryClientProvider + RouterProvider
 index.css           tailwind import + small theme tokens
 router.tsx          routes, guards, lazy pages
 lib/types.ts        domain types (below)
-lib/scoring.ts      presentationScore, finalScore, denseRank, fmtScore  (port ../lib/core/scoring.dart)
-lib/importParse.ts  parsePapers, parseReviewScores, cleanCell, matchTrack, parseReviewScore  (port ../lib/core/import/paper_import.dart exactly, incl. header aliases and messages)
+lib/scoring.ts      presentationScore, finalScore, denseRank, fmtScore
+lib/importParse.ts  parsePapers, parseReviewScores, cleanCell, matchTrack, parseReviewScore  (header aliases + exact messages)
 lib/excel.ts        dynamic-import wrappers: readSheetRows(file) -> string[][], downloadWorkbook(name, sheets), papersTemplate(), reviewScoresTemplate(), resultsWorkbook(tracks, rowsByTrack)
 lib/api.ts          `interface Api` (below) + `getApi()`
-lib/supabaseApi.ts  Supabase implementation (port ../lib/core/supabase_repository.dart: same selects, RPC names and params, chunking)
-lib/demo/store.ts, lib/demo/seed.ts, lib/demo/demoApi.ts   (port ../lib/demo/*.dart exactly: same seed data, same validation messages)
-lib/auth.tsx        AuthProvider + useAuth(): Supabase or demo implementation (port ../lib/core/auth_controller.dart incl. ?token_hash=&type= email-link handling via supabase.auth.verifyOtp)
-lib/config.ts       mode selection: demo if VITE_DEMO === 'true' OR VITE_SUPABASE_URL is missing
+lib/supabaseApi.ts  Supabase implementation (selects, RPC names and params, chunking)
+lib/auth.tsx        AuthProvider + useAuth(): Supabase implementation, incl. ?token_hash=&type= email-link handling via supabase.auth.verifyOtp
+lib/config.ts       Supabase URL + publishable key from the environment
 lib/queries.ts      react-query hooks/keys for every Api call
-components/         shared UI (Button, Card, Chip, Field/Input/Select, Sheet/Modal, ConfirmDialog, Toast, Spinner, EmptyState, TrackTabs, AppShell with top bar + bottom tabs/sidebar + AccountMenu, DemoBanner)
+components/         shared UI (Button, Card, Chip, Field/Input/Select, Sheet/Modal, ConfirmDialog, Toast, Spinner, EmptyState, TrackTabs, AppShell with top bar + bottom tabs/sidebar + AccountMenu)
 pages/auth/*, pages/chair/*, pages/panels/*, pages/member/*, pages/results/*
 ```
 
-Env: `.env.example` with `VITE_SUPABASE_URL=`, `VITE_SUPABASE_PUBLISHABLE_KEY=`, `VITE_DEMO=`. In demo mode, show a thin amber strip: "DEMO MODE — sample data, nothing is saved (resets on reload)".
+Env: `.env.example` with `VITE_SUPABASE_URL=`, `VITE_SUPABASE_PUBLISHABLE_KEY=`.
 
 ### Domain types (`lib/types.ts`) — keep these names
 ```ts
@@ -137,10 +136,8 @@ staffInvites(), addStaffInvite(email, role), removeStaffInvite(email), staffProf
 All methods are async. Errors are thrown as `Error` with a user-facing message. Supabase errors use `error.message`. Show `friendlyError(e)` in toasts, and map network failures to "Network error — check your connection and try again."
 
 ## Tests (vitest, `src/**/*.test.ts`)
-Port these Dart tests and keep the same expectations:
-- `../test/scoring_test.dart`
-- `../test/paper_import_test.dart` (skip the xlsx round-trip; test pure parsing)
-- `../test/demo_backend_test.dart`
+- `scoring.test.ts`: presentation/final scores, dense ranking, formatting.
+- `importParse.test.ts`: paper and review-score parsing — header aliases, track matching, per-row error messages.
 
 ## Deliverables when the whole app is done
 - `webapp/README.md`: dev, test, build and deploy to Cloudflare Pages (`build` output `dist/`; SPA fallback works by default when there is no 404.html).

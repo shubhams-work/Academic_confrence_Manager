@@ -1,0 +1,17 @@
+{
+  "name": "conference-evaluation-tooling",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Root-level dev tooling for the Supabase admin scripts. The app itself lives in webapp/.",
+  "scripts": {
+    "seed": "node --import tsx supabase/seed_accounts.ts",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -7,7 +7,6 @@ import { ClipboardCheck, FileText, Trophy, Upload, UserCog, UserPlus, Users } fr
 import type { AppRole } from './lib/types';
 import { useAuth } from './lib/auth';
 import { AppShell } from './components/AppShell';
-import { DemoBanner } from './components/DemoBanner';
 import { PageSpinner } from './components/Spinner';
 
 // ---------- Role navigation ----------
@@ -104,12 +103,7 @@ function RouteError(): React.JSX.Element {
 // ---------- Guards ----------
 
 function RootLayout(): React.JSX.Element {
-  return (
-    <>
-      <DemoBanner />
-      <Outlet />
-    </>
-  );
+  return <Outlet />;
 }
 
 function RootRedirect(): React.JSX.Element {
