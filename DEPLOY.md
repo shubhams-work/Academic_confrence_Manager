@@ -113,14 +113,14 @@ same build command on both sites).
 **Real site** — New site → import this repo, then in *Site settings → Build & deploy*:
 - Base directory: `webapp`
 - Build command: `npm run build`
-- Publish directory: `webapp/dist`
+- Publish directory: `dist` (relative to the base directory, i.e. `webapp/dist`)
 - Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 - Custom domain: your main domain.
 
 **Training (demo) site** — New site → same repo again, then:
 - Base directory: `webapp`
 - Build command: `npm run build:demo`
-- Publish directory: `webapp/dist`
+- Publish directory: `dist` (relative to the base directory)
 - Environment variables: **none** (this is what keeps real data unreachable).
 - Custom domain: `demo.yourdomain` (Domain management → Add a domain → one CNAME).
 
