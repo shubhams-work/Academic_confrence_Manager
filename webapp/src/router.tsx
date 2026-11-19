@@ -3,7 +3,7 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Outlet, createBrowserRouter, RouterProvider, useLocation, useRouteError, type RouteObject } from 'react-router';
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardCheck, FileText, RotateCcw, Trophy, Upload, UserCog, UserPlus, Users } from 'lucide-react';
+import { ClipboardCheck, FileText, RotateCcw, Trophy, Upload, UserCog, Users } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { useAuth } from './lib/auth';
 import { AppShell } from './components/AppShell';
@@ -21,17 +21,13 @@ const chairNav: Destination[] = [
   { path: '/papers', label: 'Papers', icon: FileText },
   { path: '/import', label: 'Review scores', icon: Upload },
   { path: '/panels', label: 'Panels', icon: Users },
-  { path: '/members', label: 'Panelists', icon: UserPlus },
   { path: '/results', label: 'Results', icon: Trophy },
   { path: '/staff', label: 'Session I.C', icon: UserCog },
 ];
 
 // Scores are chair-only, so the incharge has no Results tab (the route guard
 // also redirects them away from /results if reached directly).
-const inchargeNav: Destination[] = [
-  { path: '/panels', label: 'Panels', icon: Users },
-  { path: '/members', label: 'Panelists', icon: UserPlus },
-];
+const inchargeNav: Destination[] = [{ path: '/panels', label: 'Panels', icon: Users }];
 
 const memberNav: Destination[] = [{ path: '/my-papers', label: 'My Papers', icon: ClipboardCheck }];
 
@@ -72,7 +68,6 @@ const PaperImport = lazy(() => import('./pages/chair/PaperImport'));
 const Staff = lazy(() => import('./pages/chair/Staff'));
 const Panels = lazy(() => import('./pages/panels/Panels'));
 const PanelDetail = lazy(() => import('./pages/panels/PanelDetail'));
-const Members = lazy(() => import('./pages/panels/Members'));
 const MyPapers = lazy(() => import('./pages/member/MyPapers'));
 const Score = lazy(() => import('./pages/member/Score'));
 const Results = lazy(() => import('./pages/results/Results'));
@@ -261,14 +256,6 @@ export const routes: RouteObject[] = [
             element: (
               <LazyPage>
                 <PanelDetail />
-              </LazyPage>
-            ),
-          },
-          {
-            path: '/members',
-            element: (
-              <LazyPage>
-                <Members />
               </LazyPage>
             ),
           },

@@ -4,7 +4,20 @@
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { CheckCircle2, ChevronRight, Clock, Lock, Mail, MapPin, Phone, Plus, Search, UserCog, Users } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Search,
+  UserCog,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Chip } from '../../components/Chip';
@@ -16,6 +29,8 @@ import { friendlyError } from '../../lib/api';
 import { usePanelists, usePanels, useTracks } from '../../lib/queries';
 import type { Panel, PanelistSummary, Track } from '../../lib/types';
 import PanelForm from './PanelForm';
+import { Sheet } from '../../components/Sheet';
+import { AccountCreator } from './parts/AccountCreator';
 import { panelProgress, venueLine } from './parts/util';
 
 export default function Panels(): React.JSX.Element {
@@ -27,6 +42,8 @@ export default function Panels(): React.JSX.Element {
   // Sub-tab: the panels themselves, or every panelist's contact details.
   const [view, setView] = useState<'panels' | 'panelists'>('panels');
   const [query, setQuery] = useState('');
+  // Creating panelist accounts lives here, inside the Panelists sub-tab.
+  const [addPanelistOpen, setAddPanelistOpen] = useState(false);
 
   const trackList = tracks.data ?? [];
   const trackById = useMemo(() => new Map(trackList.map((t) => [t.id, t])), [trackList]);
@@ -112,10 +129,17 @@ export default function Panels(): React.JSX.Element {
               : `${panelists.length} panelist${panelists.length === 1 ? '' : 's'}` +
                 (idleCount > 0 ? ` · ${idleCount} idle` : '')}
         </p>
-        <Button className="hidden md:inline-flex" onClick={() => setFormOpen(true)} disabled={allFinalized}>
-          <Plus size={16} aria-hidden />
-          New panel
-        </Button>
+        {view === 'panels' ? (
+          <Button className="hidden md:inline-flex" onClick={() => setFormOpen(true)} disabled={allFinalized}>
+            <Plus size={16} aria-hidden />
+            New panel
+          </Button>
+        ) : (
+          <Button className="hidden md:inline-flex" onClick={() => setAddPanelistOpen(true)}>
+            <UserPlus size={16} aria-hidden />
+            Add panelist
+          </Button>
+        )}
       </div>
 
       {view === 'panelists' ? (
@@ -157,13 +181,23 @@ export default function Panels(): React.JSX.Element {
       {/* Floating add button on phones (above the bottom tab bar). */}
       <button
         type="button"
-        onClick={() => setFormOpen(true)}
-        disabled={allFinalized}
-        aria-label="New panel"
+        onClick={() => (view === 'panels' ? setFormOpen(true) : setAddPanelistOpen(true))}
+        disabled={view === 'panels' && allFinalized}
+        aria-label={view === 'panels' ? 'New panel' : 'Add panelist'}
         className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-fg shadow-lg active:bg-primary disabled:opacity-50 md:hidden"
       >
-        <Plus size={26} aria-hidden />
+        {view === 'panels' ? <Plus size={26} aria-hidden /> : <UserPlus size={26} aria-hidden />}
       </button>
+
+      {/* Create panelist accounts without leaving the Panelists sub-tab. */}
+      <Sheet
+        open={addPanelistOpen}
+        onClose={() => setAddPanelistOpen(false)}
+        title="Add panelists"
+        wide
+      >
+        <AccountCreator role="panel_member" />
+      </Sheet>
 
       <PanelForm
         open={formOpen}
