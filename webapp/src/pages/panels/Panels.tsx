@@ -195,7 +195,6 @@ export default function Panels(): React.JSX.Element {
         onClose={() => setAddPanelistOpen(false)}
         title="Add panelists"
         wide
-        persistent
       >
         <AccountCreator role="panel_member" />
       </Sheet>

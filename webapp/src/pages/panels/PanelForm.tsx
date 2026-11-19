@@ -147,7 +147,6 @@ export default function PanelForm({ open, onClose, panel, defaultTrackId, onSave
       open={open}
       onClose={save.isPending ? () => undefined : onClose}
       title={panel == null ? 'New panel' : 'Edit panel'}
-      persistent
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={save.isPending}>

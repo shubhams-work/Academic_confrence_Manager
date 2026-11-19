@@ -10,27 +10,14 @@ interface SheetProps {
   wide?: boolean;
   /** Sticky action bar (e.g. Cancel / Save) pinned to the bottom. */
   footer?: ReactNode;
-  /**
-   * Ignore taps on the backdrop. Use for forms: dismissing a native date or
-   * time picker registers as an outside tap, which would otherwise close the
-   * sheet and throw away whatever had been filled in.
-   */
-  persistent?: boolean;
 }
 
 /**
  * Full-screen sheet on phones, centered modal on desktop.
- * Use for forms and dialogs.
+ * Use for forms and dialogs. Closes only through an explicit action - the
+ * footer buttons, the X, or Escape - never by tapping the background.
  */
-export function Sheet({
-  open,
-  onClose,
-  title,
-  children,
-  wide = false,
-  footer,
-  persistent = false,
-}: SheetProps): React.JSX.Element | null {
+export function Sheet({ open, onClose, title, children, wide = false, footer }: SheetProps): React.JSX.Element | null {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -43,11 +30,10 @@ export function Sheet({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex justify-center md:items-center md:p-6">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={persistent ? undefined : onClose}
-        aria-hidden
-      />
+      {/* Taps on the backdrop are ignored on purpose: dismissing a native date
+          or time picker lands here, and closing would discard the form. Use
+          Cancel, the X or Escape. */}
+      <div className="absolute inset-0 bg-black/40" aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
