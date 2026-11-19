@@ -14,6 +14,7 @@ import type {
   PanelMemberInput,
   Paper,
   PaperDraftJson,
+  PanelistSummary,
   Profile,
   ResetSummary,
   ReviewScoreDraft,
@@ -506,6 +507,76 @@ export class SupabaseApi implements Api {
       errors: data.errors,
       credentials: (data.credentials ?? []) as MemberCredential[],
     };
+  }
+
+  /**
+   * Every panelist in the system, independent of panel assignment: the union of
+   * panel_member profiles (people with an account) and panel_members rows
+   * (people placed on a panel, who may not have signed up yet). Someone on no
+   * panel comes back with an empty `panels` array - that is the idle case.
+   */
+  async allPanelists(): Promise<PanelistSummary[]> {
+    const sb = getSupabase();
+    const [profs, pms] = await Promise.all([
+      sb.from('profiles').select('id, email, full_name, phone').eq('role', 'panel_member'),
+      sb
+        .from('panel_members')
+        .select('id, name, email, phone, affiliation, profile_id, panel_id, panels(id, name, track_id)'),
+    ]);
+    if (profs.error) throw new Error(profs.error.message);
+    if (pms.error) throw new Error(pms.error.message);
+
+    const byEmail = new Map<string, PanelistSummary>();
+    const take = (email: string): PanelistSummary => {
+      const key = email.trim().toLowerCase();
+      let row = byEmail.get(key);
+      if (row == null) {
+        row = { name: '', email: key, phone: null, affiliation: null, signedUp: false, panels: [] };
+        byEmail.set(key, row);
+      }
+      return row;
+    };
+
+    for (const p of (profs.data ?? []) as {
+      id: string;
+      email: string;
+      full_name?: string | null;
+      phone?: string | null;
+    }[]) {
+      const row = take(p.email);
+      row.signedUp = true;
+      if (p.full_name != null && p.full_name.trim() !== '') row.name = p.full_name;
+      if (row.phone == null) row.phone = p.phone ?? null;
+    }
+
+    type PanelEmbed = { id: string; name: string; track_id: number };
+    for (const m of (pms.data ?? []) as unknown as {
+      name: string;
+      email: string;
+      phone?: string | null;
+      affiliation?: string | null;
+      profile_id?: string | null;
+      // PostgREST returns the embedded parent as an object; the generated
+      // types widen it to an array, so accept either.
+      panels?: PanelEmbed | PanelEmbed[] | null;
+    }[]) {
+      const row = take(m.email);
+      if (row.name === '') row.name = m.name;
+      if (row.phone == null) row.phone = m.phone ?? null;
+      if (row.affiliation == null) row.affiliation = m.affiliation ?? null;
+      if (m.profile_id != null) row.signedUp = true;
+      const embed = m.panels ?? null;
+      const panel: PanelEmbed | null = Array.isArray(embed) ? (embed[0] ?? null) : embed;
+      if (panel != null && !row.panels.some((x) => x.id === panel.id)) {
+        row.panels.push({ id: panel.id, name: panel.name, trackId: panel.track_id });
+      }
+    }
+
+    for (const row of byEmail.values()) {
+      if (row.name === '') row.name = row.email;
+      row.panels.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async availablePanelMembers(): Promise<PanelMemberSuggestion[]> {

@@ -8,6 +8,7 @@ import type {
   PanelMemberInput,
   Paper,
   PaperDraftJson,
+  PanelistSummary,
   Profile,
   ResetSummary,
   ReviewScoreDraft,
@@ -79,6 +80,8 @@ export interface Api {
   bulkCreateMembers(rows: MemberDraft[], role?: AppRole): Promise<BulkCreateMembersResult>;
   /** Already-onboarded members, for autofill when assigning to a panel. */
   availablePanelMembers(): Promise<PanelMemberSuggestion[]>;
+  /** Every panelist, whether or not they are on a panel, with their panels. */
+  allPanelists(): Promise<PanelistSummary[]>;
 }
 
 export interface MemberDraft {

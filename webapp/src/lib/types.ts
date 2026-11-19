@@ -124,6 +124,17 @@ export interface ScoreRow {
   memberCount: number;
 }
 
+/** One panelist, with every panel they sit on (empty = idle/unassigned). */
+export interface PanelistSummary {
+  name: string;
+  email: string;
+  phone?: string | null;
+  affiliation?: string | null;
+  /** They have an account and can sign in. */
+  signedUp: boolean;
+  panels: { id: string; name: string; trackId: number }[];
+}
+
 export interface StaffInvite {
   email: string;
   role: AppRole;

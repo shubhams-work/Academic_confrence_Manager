@@ -260,8 +260,14 @@ export function useBulkCreateMembers(): UseMutationResult<
         'panels',
         'panel',
         'panel-member-suggestions',
+        'panelists',
       ]),
   });
+}
+
+/** Every panelist, including those on no panel. */
+export function usePanelists() {
+  return useQuery({ queryKey: ['panelists'], queryFn: () => getApi().allPanelists() });
 }
 
 export function usePanelMemberSuggestions() {
