@@ -97,7 +97,8 @@ export function AppShell({ nav, children }: AppShellProps): React.JSX.Element {
             <AccountMenu />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1100px] flex-1 p-4 pb-24 md:pb-8">{children}</main>
+        <main className="mx-auto w-full max-w-[1100px] flex-1 p-4 pb-4">{children}</main>
+        <AppFooter />
       </div>
 
       {showNav && (
@@ -121,6 +122,20 @@ export function AppShell({ nav, children }: AppShellProps): React.JSX.Element {
         </nav>
       )}
     </div>
+  );
+}
+
+/** Attribution shown at the bottom of every screen. */
+export function AppFooter(): React.JSX.Element {
+  return (
+    <footer className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-6 md:pb-8">
+      <div className="border-t border-line pt-4 text-center text-xs leading-relaxed text-ink-muted">
+        <p>
+          Powered by <span className="font-medium text-ink">Sahynex Innovations</span>
+        </p>
+        <p className="mt-0.5">Developed by CoE Cybersecurity and Dept of CSE, SCEM</p>
+      </div>
+    </footer>
   );
 }
 

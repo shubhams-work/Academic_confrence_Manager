@@ -5,6 +5,7 @@ import { friendlyError } from '../../lib/api';
 import { Button } from '../../components/Button';
 import { Field, Input } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
+import { AppFooter } from '../../components/AppShell';
 import { useToast } from '../../components/Toast';
 
 const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -146,6 +147,8 @@ export default function Login(): React.JSX.Element {
             Forgot password?
           </button>
         </div>
+
+        <AppFooter />
       </div>
 
       {/* Forgot-password dialog */}
