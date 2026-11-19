@@ -1,9 +1,14 @@
-// React-query hooks and keys for every Api call.
+﻿// React-query hooks and keys for every Api call.
 // Mutations invalidate the lists they affect; queries refetch on window focus
 // and use a ~30 s staleTime (set in main.tsx).
 
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
-import { getApi, type BulkCreateMembersResult, type MemberDraft } from './api';
+import {
+  getApi,
+  type BulkCreateMembersResult,
+  type DeletePanelistResult,
+  type MemberDraft,
+} from './api';
 import type { AppRole, PanelMemberInput, ResetSummary } from './types';
 import type { PaperDraftJson, ReviewScoreDraft } from './importParse';
 
@@ -273,6 +278,27 @@ export function useResetPanelistPassword(): UseMutationResult<
 > {
   return useMutation({
     mutationFn: (email: string) => getApi().resetPanelistPassword(email),
+  });
+}
+
+/**
+ * Chair only: delete a panelist outright. Rejects with NeedsForceError when
+ * they have submitted scores, so the caller can confirm and retry with force.
+ */
+export function useDeletePanelist(): UseMutationResult<
+  DeletePanelistResult,
+  Error,
+  { email: string; force?: boolean }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, force }: { email: string; force?: boolean }) =>
+      getApi().deletePanelist(email, force ?? false),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['panelists'] });
+      void qc.invalidateQueries({ queryKey: ['panels'] });
+      void qc.invalidateQueries({ queryKey: ['panel'] });
+    },
   });
 }
 

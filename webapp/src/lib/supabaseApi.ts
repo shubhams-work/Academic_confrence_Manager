@@ -22,7 +22,15 @@ import type {
   StaffInvite,
   Track,
 } from './types';
-import type { Api, BulkCreateMembersResult, MemberCredential, MemberDraft, PanelMemberSuggestion } from './api';
+import { NeedsForceError } from './api';
+import type {
+  Api,
+  BulkCreateMembersResult,
+  DeletePanelistResult,
+  MemberCredential,
+  MemberDraft,
+  PanelMemberSuggestion,
+} from './api';
 import { supabaseUrl, supabasePublishableKey } from './config';
 
 let client: SupabaseClient | null = null;
@@ -276,6 +284,15 @@ async function invokeFunction<T>(name: string, body: Record<string, unknown>): P
         detail = parsed.error ?? parsed.message ?? text;
       } catch {
         // Not JSON - fall back to the raw body text.
+      }
+      if (res.status === 409) {
+        let submitted = 0;
+        try {
+          submitted = (JSON.parse(text) as { submitted?: number }).submitted ?? 0;
+        } catch {
+          // Leave the count at 0 - the message still explains the refusal.
+        }
+        throw new NeedsForceError(detail, submitted);
       }
       if (res.status === 401) {
         throw new Error('Your session has expired. Sign out, sign in again, and retry.');
@@ -631,6 +648,13 @@ export class SupabaseApi implements Api {
     );
     if (!data.password) throw new Error(data.error ?? 'Could not reset the password.');
     return { email: data.email, password: data.password };
+  }
+
+  async deletePanelist(email: string, force = false): Promise<DeletePanelistResult> {
+    return invokeFunction<DeletePanelistResult>('delete_panelist', {
+      email: email.trim().toLowerCase(),
+      force,
+    });
   }
 
   async availablePanelMembers(): Promise<PanelMemberSuggestion[]> {

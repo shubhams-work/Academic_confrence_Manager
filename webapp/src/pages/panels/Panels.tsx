@@ -19,6 +19,7 @@ import {
   Phone,
   Plus,
   Search,
+  Trash2,
   UserCog,
   UserPlus,
   Users,
@@ -30,8 +31,15 @@ import { EmptyState } from '../../components/EmptyState';
 import { Input } from '../../components/Field';
 import { ListSkeleton, QueryError } from '../../components/QueryError';
 import { TrackTabs } from '../../components/TrackTabs';
-import { friendlyError } from '../../lib/api';
-import { useResetPanelistPassword, usePanelists, usePanels, useTracks } from '../../lib/queries';
+import { friendlyError, NeedsForceError } from '../../lib/api';
+import {
+  useDeletePanelist,
+  useResetPanelistPassword,
+  usePanelists,
+  usePanels,
+  useTracks,
+} from '../../lib/queries';
+import { useAuth } from '../../lib/auth';
 import type { Panel, PanelistSummary, Track } from '../../lib/types';
 import PanelForm from './PanelForm';
 import { Sheet } from '../../components/Sheet';
@@ -263,10 +271,21 @@ function PanelistsView({
 /** One panelist: contact details, their panels, and their sign-in password. */
 function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
   const toast = useToast();
+  const auth = useAuth();
   const reset = useResetPanelistPassword();
+  const remove = useDeletePanelist();
   const qc = useQueryClient();
   const [shown, setShown] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // null = closed. `force` is set after the server refuses a delete that would
+  // erase submitted scores, so the second confirm states exactly what is lost.
+  const [confirmDelete, setConfirmDelete] = useState<{ force: boolean; warning?: string } | null>(
+    null,
+  );
+
+  // Deleting an account needs the service role, so it is Chair-only both here
+  // and in the edge function.
+  const isChair = auth.role === 'organizing_chair';
 
   const password = row.password ?? null;
 
@@ -292,6 +311,35 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
         toast.error(friendlyError(e));
       },
     });
+  };
+
+  const doDelete = (force: boolean): void => {
+    remove.mutate(
+      { email: row.email, force },
+      {
+        onSuccess: (out) => {
+          setConfirmDelete(null);
+          const bits: string[] = [];
+          if (out.deletedAccount) bits.push('account deleted');
+          if (out.removedFromPanels > 0) {
+            bits.push(`removed from ${out.removedFromPanels} panel${out.removedFromPanels === 1 ? '' : 's'}`);
+          }
+          if (out.deletedEvaluations > 0) {
+            bits.push(`${out.deletedEvaluations} score sheet${out.deletedEvaluations === 1 ? '' : 's'} erased`);
+          }
+          toast.success(`${row.name}: ${bits.length === 0 ? 'deleted' : bits.join(', ')}`);
+        },
+        onError: (e) => {
+          // The server refused because scores would be lost: ask again, louder.
+          if (e instanceof NeedsForceError) {
+            setConfirmDelete({ force: true, warning: e.message });
+            return;
+          }
+          setConfirmDelete(null);
+          toast.error(friendlyError(e));
+        },
+      },
+    );
   };
 
   return (
@@ -367,7 +415,7 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
         </Button>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {row.panels.length === 0 ? (
           <Chip tone="gray">Idle — no panel</Chip>
         ) : (
@@ -376,6 +424,18 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
               {pp.name}
             </Chip>
           ))
+        )}
+        {isChair && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+            loading={remove.isPending}
+            onClick={() => setConfirmDelete({ force: false })}
+          >
+            <Trash2 size={15} aria-hidden />
+            Delete
+          </Button>
         )}
       </div>
 
@@ -388,6 +448,28 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
         busy={reset.isPending}
         onConfirm={doReset}
         onCancel={() => setConfirmReset(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete != null}
+        title={
+          confirmDelete?.force === true ? `Delete ${row.name} and their scores?` : `Delete ${row.name}?`
+        }
+        message={
+          confirmDelete?.warning ??
+          `This deletes their sign-in account, their stored password and their seat on ${
+            row.panels.length === 0
+              ? 'any panel'
+              : row.panels.map((pp) => pp.name).join(', ')
+          }. It cannot be undone.${
+            row.panels.length === 0 ? '' : ' The panel will be left short a member until you add someone.'
+          }`
+        }
+        confirmLabel={confirmDelete?.force === true ? 'Delete anyway' : 'Delete panelist'}
+        destructive
+        busy={remove.isPending}
+        onConfirm={() => doDelete(confirmDelete?.force === true)}
+        onCancel={() => setConfirmDelete(null)}
       />
     </Card>
   );

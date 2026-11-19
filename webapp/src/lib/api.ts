@@ -1,4 +1,4 @@
-// All data access used by the screens. Implemented by SupabaseApi.
+﻿// All data access used by the screens. Implemented by SupabaseApi.
 // Port of ../lib/core/repository.dart.
 
 import type {
@@ -88,6 +88,8 @@ export interface Api {
    * replaced. The old password stops working immediately.
    */
   resetPanelistPassword(email: string): Promise<{ email: string; password: string }>;
+  /** Chair only. Deletes the account, its stored password and every panel seat. */
+  deletePanelist(email: string, force?: boolean): Promise<DeletePanelistResult>;
 }
 
 export interface MemberDraft {
@@ -130,6 +132,23 @@ export function getApi(): Api {
 }
 
 /** Turns Supabase / network errors into a short message for the user. */
+export interface DeletePanelistResult {
+  email: string;
+  deletedAccount: boolean;
+  removedFromPanels: number;
+  deletedEvaluations: number;
+}
+
+/** A delete refused because it would erase submitted scores; retry with force. */
+export class NeedsForceError extends Error {
+  readonly submitted: number;
+  constructor(message: string, submitted: number) {
+    super(message);
+    this.name = 'NeedsForceError';
+    this.submitted = submitted;
+  }
+}
+
 export function friendlyError(e: unknown): string {
   if (e instanceof Error) {
     if (e.name === 'TypeError' || /failed to fetch|networkerror|load failed|network/i.test(e.message)) {
