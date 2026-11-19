@@ -130,10 +130,8 @@ export function AppFooter(): React.JSX.Element {
   return (
     <footer className="mx-auto w-full max-w-[1100px] px-4 pb-24 pt-6 md:pb-8">
       <div className="border-t border-line pt-4 text-center text-xs leading-relaxed text-ink-muted">
-        <p>
-          Powered by <span className="font-medium text-ink">Sahynex Innovations</span>
-        </p>
-        <p className="mt-0.5">Developed by CoE Cybersecurity and Dept of CSE, SCEM</p>
+        <p>Developed by CoE Cybersecurity and Dept of CSE, SCEM</p>
+        <p className="mt-0.5">Powered by Sahynex Innovations</p>
       </div>
     </footer>
   );
