@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { Link, useBlocker, useParams } from 'react-router';
+import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import { AlertCircle, ArrowLeft, Lock, Save, SearchX, Send } from 'lucide-react';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
@@ -25,6 +25,7 @@ function ScoreForm({ paper, criteria, track }: { paper: Paper; criteria: Criteri
   const existing = paper.evaluations[0];
   const saveEvaluation = useSaveEvaluation();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [marks, setMarks] = useState<Marks>(() => {
     const initial: Marks = {};
     for (const criterion of criteria) initial[criterion.id] = existing?.marks[criterion.id];
@@ -96,6 +97,9 @@ function ScoreForm({ paper, criteria, track }: { paper: Paper; criteria: Criteri
         setConfirmSubmit(false);
       }
       toast(submit ? 'Marks submitted' : 'Draft saved');
+      // Submitting is final, so there is nothing left to do on this screen:
+      // send the panelist straight back to their paper list.
+      if (submit) navigate('/my-papers', { replace: true });
     } catch (error) {
       // Keep all values editable so the member can retry after an error.
       toast(friendlyError(error), { error: true });
