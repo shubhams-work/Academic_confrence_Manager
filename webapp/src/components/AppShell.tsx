@@ -109,13 +109,13 @@ export function AppShell({ nav, children }: AppShellProps): React.JSX.Element {
                 key={d.path}
                 to={d.path}
                 className={({ isActive }) =>
-                  `flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                  `flex h-16 flex-col items-center justify-start gap-1 px-1 pt-2 text-center text-[11px] font-medium leading-tight transition-colors ${
                     isActive ? 'text-primary' : 'text-ink-muted hover:text-primary'
                   }`
                 }
               >
-                <d.icon size={20} aria-hidden />
-                {d.label}
+                <d.icon size={20} className="shrink-0" aria-hidden />
+                <span className="line-clamp-2">{d.label}</span>
               </NavLink>
             ))}
           </div>

@@ -3,7 +3,7 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, Outlet, createBrowserRouter, RouterProvider, useLocation, useRouteError, type RouteObject } from 'react-router';
 import type { LucideIcon } from 'lucide-react';
-import { ClipboardCheck, FileText, RotateCcw, Trophy, Upload, UserCog, Users } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, FileText, RotateCcw, Trophy, UserCog, Users } from 'lucide-react';
 import type { AppRole } from './lib/types';
 import { useAuth } from './lib/auth';
 import { AppShell } from './components/AppShell';
@@ -19,7 +19,7 @@ export interface Destination {
 
 const chairNav: Destination[] = [
   { path: '/papers', label: 'Papers', icon: FileText },
-  { path: '/import', label: 'Review scores', icon: Upload },
+  { path: '/import', label: 'Review scores', icon: ClipboardList },
   { path: '/panels', label: 'Panels', icon: Users },
   { path: '/results', label: 'Results', icon: Trophy },
   { path: '/staff', label: 'Session I.C', icon: UserCog },
