@@ -65,6 +65,7 @@ export function AssignPapersSheet({ open, onClose, panel }: { open: boolean; onC
       open={open}
       onClose={assign.isPending ? () => undefined : onClose}
       title="Assign papers"
+      persistent
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={assign.isPending}>

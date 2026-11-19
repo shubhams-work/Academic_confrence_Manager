@@ -147,6 +147,7 @@ export default function PanelForm({ open, onClose, panel, defaultTrackId, onSave
       open={open}
       onClose={save.isPending ? () => undefined : onClose}
       title={panel == null ? 'New panel' : 'Edit panel'}
+      persistent
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={save.isPending}>
@@ -187,7 +188,19 @@ export default function PanelForm({ open, onClose, panel, defaultTrackId, onSave
             <Input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Seminar Hall 2" />
           </Field>
           <Field label="Date & time" hint="Optional">
-            <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+            <div className="flex items-center gap-2">
+              <Input
+                type="datetime-local"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                className="flex-1"
+              />
+              {when !== '' && (
+                <Button variant="outline" size="sm" onClick={() => setWhen('')}>
+                  Clear
+                </Button>
+              )}
+            </div>
           </Field>
         </div>
 
