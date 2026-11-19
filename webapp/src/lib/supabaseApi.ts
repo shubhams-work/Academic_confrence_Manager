@@ -1,4 +1,4 @@
-// Supabase implementation. Row-Level Security on the server decides what
+﻿// Supabase implementation. Row-Level Security on the server decides what
 // each role can actually see; writes that need validation go through RPCs.
 // Port of ../lib/core/supabase_repository.dart: same selects, RPC names,
 // params and chunking.
@@ -255,6 +255,41 @@ function cmpText(a: string, b: string): number {
 
 // ---------- Implementation ----------
 
+/**
+ * Call an Edge Function and surface the reason it failed.
+ *
+ * supabase-js throws a FunctionsHttpError whose message is always the useless
+ * "Edge Function returned a non-2xx status code"; the actual reason is in the
+ * response body, which it hands over as `context`. Without this, any server
+ * rejection (not signed in, wrong role, bad row) reached the user as an
+ * unexplained "edge function failure", which is impossible to act on.
+ */
+async function invokeFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await getSupabase().functions.invoke<T>(name, { body });
+  if (error) {
+    const res = (error as { context?: unknown }).context;
+    if (res instanceof Response) {
+      const text = await res.text().catch(() => '');
+      let detail = text;
+      try {
+        const parsed = JSON.parse(text) as { error?: string; message?: string };
+        detail = parsed.error ?? parsed.message ?? text;
+      } catch {
+        // Not JSON - fall back to the raw body text.
+      }
+      if (res.status === 401) {
+        throw new Error('Your session has expired. Sign out, sign in again, and retry.');
+      }
+      throw new Error(
+        detail.trim() === '' ? `${name} failed (HTTP ${res.status}).` : detail,
+      );
+    }
+    throw new Error(error.message);
+  }
+  if (data == null) throw new Error(`No response from ${name}.`);
+  return data;
+}
+
 const paperCols =
   'id,pid,title,track_id,review_score,panel_id,authors(name,affiliation,email,phone,position),panels(name,venue,scheduled_at)';
 
@@ -495,12 +530,7 @@ export class SupabaseApi implements Api {
   }
 
   async bulkCreateMembers(rows: MemberDraft[], role: AppRole = 'panel_member'): Promise<BulkCreateMembersResult> {
-    const { data, error } = await getSupabase().functions.invoke<BulkCreateMembersResult>(
-      'bulk_create_members',
-      { body: { rows, role } },
-    );
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('No response from bulk_create_members.');
+    const data = await invokeFunction<BulkCreateMembersResult>('bulk_create_members', { rows, role });
     return {
       created: data.created,
       skipped: data.skipped,
@@ -595,13 +625,11 @@ export class SupabaseApi implements Api {
   }
 
   async resetPanelistPassword(email: string): Promise<{ email: string; password: string }> {
-    const { data, error } = await getSupabase().functions.invoke<{
-      email: string;
-      password: string;
-      error?: string;
-    }>('reset_panelist_password', { body: { email: email.trim().toLowerCase() } });
-    if (error) throw new Error(error.message);
-    if (!data || !data.password) throw new Error(data?.error ?? 'Could not reset the password.');
+    const data = await invokeFunction<{ email: string; password: string; error?: string }>(
+      'reset_panelist_password',
+      { email: email.trim().toLowerCase() },
+    );
+    if (!data.password) throw new Error(data.error ?? 'Could not reset the password.');
     return { email: data.email, password: data.password };
   }
 

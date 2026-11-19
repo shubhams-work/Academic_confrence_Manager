@@ -1,8 +1,9 @@
-// Parser for the panel-members .xlsx that the Session Incharge uploads.
+﻿// Parser for the panel-members .xlsx that the Session Incharge uploads.
 // Mirrors the style of importParse.ts: pure functions over string[][] rows,
 // tolerant header aliases, row-by-row issues collected rather than thrown.
 
 import type { MemberDraft } from './api';
+import { PHONE_LENGTH, phoneDigits } from './phone';
 
 export interface MemberImportIssue {
   row: number;
@@ -97,12 +98,22 @@ export function parseMembers(rows: string[][]): MemberImportResult {
     }
     seen.set(email, i + 1);
 
-    const phone = phoneCol >= 0 ? cleanCell(r[phoneCol]) : '';
+    // Phones are stored as 10 digits. A sheet often carries them with spaces,
+    // dashes or a +91 prefix, so strip to digits first and only complain when
+    // what is left cannot be a 10-digit number.
+    const rawPhone = phoneCol >= 0 ? cleanCell(r[phoneCol]) : '';
+    const phone = phoneDigits(rawPhone.replace(/^\+?91/, ''));
+    if (rawPhone !== '' && phone.length !== PHONE_LENGTH) {
+      issues.push({
+        row: i + 1,
+        message: `Phone "${rawPhone}" is not a ${PHONE_LENGTH}-digit number - imported without a phone`,
+      });
+    }
     const affiliation = affCol >= 0 ? cleanCell(r[affCol]) : '';
     out.push({
       name,
       email,
-      phone: phone === '' ? null : phone,
+      phone: phone.length === PHONE_LENGTH ? phone : null,
       affiliation: affiliation === '' ? null : affiliation,
     });
   }

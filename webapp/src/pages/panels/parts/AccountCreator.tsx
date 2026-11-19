@@ -1,9 +1,10 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+﻿import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { CloudUpload, Download, FolderOpen, UserPlus, Users } from 'lucide-react';
 import { useBulkCreateMembers } from '../../../lib/queries';
 import { friendlyError, type BulkCreateMembersResult, type MemberDraft } from '../../../lib/api';
 import type { AppRole } from '../../../lib/types';
 import { parseMembers, type MemberImportResult } from '../../../lib/membersImport';
+import { PHONE_LENGTH, phoneDigits, phoneError } from '../../../lib/phone';
 import { credentialsWorkbook, membersTemplate, readSheetRows } from '../../../lib/excel';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
@@ -45,7 +46,7 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [affiliation, setAffiliation] = useState('');
-  const [manualErrors, setManualErrors] = useState<{ name?: string; email?: string }>({});
+  const [manualErrors, setManualErrors] = useState<{ name?: string; email?: string; phone?: string }>({});
 
   const busy = parsing || bulk.isPending;
 
@@ -112,17 +113,19 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
     e.preventDefault();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
-    const errs: { name?: string; email?: string } = {};
+    const digits = phoneDigits(phone);
+    const errs: { name?: string; email?: string; phone?: string } = {};
     if (trimmedName === '') errs.name = 'Name is required';
     if (trimmedEmail === '') errs.email = 'Email is required';
     else if (!EMAIL_RE.test(trimmedEmail)) errs.email = 'Enter a valid email';
+    errs.phone = phoneError(digits);
     setManualErrors(errs);
-    if (errs.name != null || errs.email != null) return;
+    if (errs.name != null || errs.email != null || errs.phone != null) return;
 
     const draft: MemberDraft = {
       name: trimmedName,
       email: trimmedEmail,
-      phone: phone.trim() === '' ? null : phone.trim(),
+      phone: digits === '' ? null : digits,
       affiliation: affiliation.trim() === '' ? null : affiliation.trim(),
     };
     bulk.mutate({ rows: [draft], role }, {
@@ -185,13 +188,19 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
                 placeholder="jane@example.edu"
               />
             </Field>
-            <Field label="Phone" hint="Optional">
+            <Field
+              label="Phone"
+              hint={`Optional · ${PHONE_LENGTH} digits`}
+              error={manualErrors.phone}
+            >
               <Input
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(phoneDigits(e.target.value))}
                 autoComplete="off"
                 disabled={busy}
-                inputMode="tel"
+                inputMode="numeric"
+                maxLength={PHONE_LENGTH}
+                placeholder="9876543210"
               />
             </Field>
             <Field label="Affiliation" hint="Optional">
@@ -221,7 +230,7 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
         </div>
         <p className="mt-2 text-xs text-ink-muted">
           Upload an .xlsx with one row per {one}. Columns: <strong>Name</strong>,{' '}
-          <strong>Email</strong>, Phone (optional), Affiliation (optional). Each row becomes a
+          <strong>Email</strong>, Phone (optional, 10 digits), Affiliation (optional). Each row becomes a
           sign-in account with a randomly generated password. You will download the password list
           after the upload — save it, we do not keep a copy.
         </p>
