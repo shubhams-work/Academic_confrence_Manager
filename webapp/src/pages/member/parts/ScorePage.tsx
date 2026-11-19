@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router';
 import { AlertCircle, ArrowLeft, Lock, Save, SearchX, Send } from 'lucide-react';
 import { Button } from '../../../components/Button';
@@ -47,7 +47,13 @@ function ScoreForm({ paper, criteria, track }: { paper: Paper; criteria: Criteri
   const maxTotal = criteria.reduce((sum, criterion) => sum + criterion.maxMarks, 0);
   const complete = criteria.length > 0 && criteria.every((criterion) => marks[criterion.id] != null);
   const dirty = currentSnapshot(criteria, marks, comments) !== savedSnapshot;
-  const blocker = useBlocker(dirty);
+  // A successful submit redirects to My papers. `dirty` is still true at that
+  // moment because the state updates from the save have not rendered yet, so
+  // without this ref the unsaved-changes blocker would catch our own redirect
+  // and show "Discard changes?" instead of leaving. The blocker reads the ref
+  // when a navigation happens, so it always sees the current value.
+  const leaving = useRef(false);
+  const blocker = useBlocker(useCallback(() => dirty && !leaving.current, [dirty]));
 
   useEffect(() => {
     if (!dirty) return;
@@ -99,7 +105,10 @@ function ScoreForm({ paper, criteria, track }: { paper: Paper; criteria: Criteri
       toast(submit ? 'Marks submitted' : 'Draft saved');
       // Submitting is final, so there is nothing left to do on this screen:
       // send the panelist straight back to their paper list.
-      if (submit) navigate('/my-papers', { replace: true });
+      if (submit) {
+        leaving.current = true;
+        navigate('/my-papers', { replace: true });
+      }
     } catch (error) {
       // Keep all values editable so the member can retry after an error.
       toast(friendlyError(error), { error: true });
