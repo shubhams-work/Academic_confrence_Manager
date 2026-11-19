@@ -244,11 +244,23 @@ export function useResetTrainingData(): UseMutationResult<ResetSummary, Error, s
   });
 }
 
-export function useBulkCreateMembers(): UseMutationResult<BulkCreateMembersResult, Error, MemberDraft[]> {
+export function useBulkCreateMembers(): UseMutationResult<
+  BulkCreateMembersResult,
+  Error,
+  { rows: MemberDraft[]; role?: AppRole }
+> {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (rows: MemberDraft[]) => getApi().bulkCreateMembers(rows),
-    onSuccess: () => invalidateLists(qc, ['staff-profiles', 'panels', 'panel', 'panel-member-suggestions']),
+    mutationFn: ({ rows, role }: { rows: MemberDraft[]; role?: AppRole }) =>
+      getApi().bulkCreateMembers(rows, role),
+    onSuccess: () =>
+      invalidateLists(qc, [
+        'staff-profiles',
+        'staff-invites',
+        'panels',
+        'panel',
+        'panel-member-suggestions',
+      ]),
   });
 }
 

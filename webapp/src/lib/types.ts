@@ -102,6 +102,9 @@ export interface Panel {
   trackId: number;
   venue?: string | null;
   scheduledAt?: string | null;
+  /** Who created the panel. Name is null for panel members (RLS hides other profiles). */
+  createdById?: string | null;
+  createdByName?: string | null;
   members: PanelMember[];
   papers: Paper[];
 }

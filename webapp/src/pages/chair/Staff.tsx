@@ -1,14 +1,13 @@
-﻿import { useMemo, useState, type FormEvent } from 'react';
-import { Badge, BadgeCheck, Info, RotateCcw, Star, Trash2, UserPlus } from 'lucide-react';
+﻿import { useMemo, useState } from 'react';
+import { Badge, BadgeCheck, Info, RotateCcw, Star, Trash2 } from 'lucide-react';
 import {
-  useAddStaffInvite,
   useRemoveStaffInvite,
   useSetResetAccess,
   useStaffInvites,
   useStaffProfiles,
 } from '../../lib/queries';
 import { friendlyError } from '../../lib/api';
-import { roleLabel, type AppRole, type Profile, type StaffInvite } from '../../lib/types';
+import { roleLabel, type Profile, type StaffInvite } from '../../lib/types';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
@@ -16,27 +15,20 @@ import { Card } from '../../components/Card';
 import { Chip } from '../../components/Chip';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EmptyState } from '../../components/EmptyState';
-import { Field, Input, Select } from '../../components/Field';
-import { Sheet } from '../../components/Sheet';
 import { QueryError } from './parts/QueryError';
+import { AccountCreator } from '../panels/parts/AccountCreator';
 
-const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-/** Organizing Chair: pre-approve Session Incharge / co-chair emails
- *  (port of staff_page.dart). */
+/** Organizing Chair: create Session Incharge accounts — the same flow as the
+ *  panelist invite (one at a time or an .xlsx upload, each getting a generated
+ *  password) — and manage who already has access. */
 export default function Staff() {
   const toast = useToast();
   const auth = useAuth();
   const invites = useStaffInvites();
   const profiles = useStaffProfiles();
-  const addInvite = useAddStaffInvite();
   const removeInvite = useRemoveStaffInvite();
   const setResetAccess = useSetResetAccess();
 
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<AppRole>('session_incharge');
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<StaffInvite | null>(null);
   const [resetTarget, setResetTarget] = useState<Profile | null>(null);
 
@@ -49,36 +41,6 @@ export default function Staff() {
     [invites.data],
   );
   const myEmail = (auth.email ?? '').toLowerCase();
-
-  const closeInvite = () => {
-    setInviteOpen(false);
-    setEmail('');
-    setRole('session_incharge');
-    setEmailError(null);
-  };
-
-  const submitInvite = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = email.trim().toLowerCase();
-    if (trimmed === '') {
-      setEmailError('Email is required');
-      return;
-    }
-    if (!emailRe.test(trimmed)) {
-      setEmailError('Enter a valid email');
-      return;
-    }
-    addInvite.mutate(
-      { email: trimmed, role },
-      {
-        onSuccess: () => {
-          toast.success(`${trimmed} can now sign up as ${roleLabel[role]}`);
-          closeInvite();
-        },
-        onError: (err) => toast.error(friendlyError(err)),
-      },
-    );
-  };
 
   const onResetAccessConfirmed = () => {
     const p = resetTarget;
@@ -125,26 +87,23 @@ export default function Staff() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="flex max-w-3xl flex-col">
       {/* Hint */}
       <Card className="p-4 mb-4 flex gap-3">
         <Info size={20} className="text-primary dark:text-primary shrink-0 mt-0.5" />
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Add the email of each Session Incharge here. They then sign up in the app with that same
-          email. Panel members do not need to be added here — the Session Incharge adds them when
-          creating a panel.
+          Create a sign-in account for each Session Incharge below, then hand them the generated
+          password — the same way panelist accounts are created. Panel members do not need to be
+          added here; a Session Incharge adds them from the Panelists tab.
         </p>
       </Card>
 
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {invites.data != null ? `${list.length} invite${list.length === 1 ? '' : 's'}` : ''}
-        </p>
-        <Button className="hidden md:inline-flex" onClick={() => setInviteOpen(true)}>
-          <UserPlus size={16} />
-          Invite
-        </Button>
-      </div>
+      <AccountCreator role="session_incharge" />
+
+      <h3 className="mb-3 mt-6 text-base font-semibold">
+        Session Incharges and co-chairs
+        {invites.data != null ? ` (${list.length})` : ''}
+      </h3>
 
       {invites.isLoading ? (
         <div className="flex flex-col gap-2" aria-label="Loading staff">
@@ -155,7 +114,7 @@ export default function Staff() {
       ) : list.length === 0 ? (
         <EmptyState
           icon={Badge}
-          message="No staff invited yet. Use the Invite button to add a Session Incharge or a co-chair."
+          message="Nobody added yet. Create a Session Incharge account above."
         />
       ) : (
         <div className="flex flex-col gap-2">
@@ -215,53 +174,6 @@ export default function Staff() {
           })}
         </div>
       )}
-
-      {/* Phone FAB (the bottom tab bar sits at 56 px + safe area) */}
-      <button
-        type="button"
-        onClick={() => setInviteOpen(true)}
-        aria-label="Invite staff"
-        className="md:hidden fixed bottom-24 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-primary text-primary-fg pl-4 pr-5 min-h-14 text-sm font-semibold shadow-lg hover:bg-primary active:bg-primary"
-      >
-        <UserPlus size={20} />
-        Invite
-      </button>
-
-      {/* Invite dialog */}
-      <Sheet
-        open={inviteOpen}
-        onClose={closeInvite}
-        title="Invite staff"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={closeInvite} disabled={addInvite.isPending}>
-              Cancel
-            </Button>
-            <Button type="submit" form="invite-form" loading={addInvite.isPending}>
-              Invite
-            </Button>
-          </div>
-        }
-      >
-        <form id="invite-form" className="flex flex-col gap-4" onSubmit={submitInvite} noValidate>
-          <Field label="Email" required error={emailError}>
-            <Input
-              type="email"
-              inputMode="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@college.edu"
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="Role" required>
-            <Select value={role} onChange={(e) => setRole(e.target.value as AppRole)}>
-              <option value="session_incharge">Session Incharge</option>
-              <option value="organizing_chair">Organizing Chair</option>
-            </Select>
-          </Field>
-        </form>
-      </Sheet>
 
       {/* Reset-access confirm */}
       <ConfirmDialog

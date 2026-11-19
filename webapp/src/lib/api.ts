@@ -75,7 +75,8 @@ export interface Api {
   resetTrainingData(confirmPhrase: string): Promise<ResetSummary>;
 
   // ---------- Panel members (bulk) ----------
-  bulkCreateMembers(rows: MemberDraft[]): Promise<BulkCreateMembersResult>;
+  /** Creates sign-in accounts. `role` defaults to 'panel_member'; 'session_incharge' is chair-only. */
+  bulkCreateMembers(rows: MemberDraft[], role?: AppRole): Promise<BulkCreateMembersResult>;
   /** Already-onboarded members, for autofill when assigning to a panel. */
   availablePanelMembers(): Promise<PanelMemberSuggestion[]>;
 }

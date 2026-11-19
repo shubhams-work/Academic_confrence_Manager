@@ -2,7 +2,11 @@
 //
 // Called by the Incharge-facing "Add Members" screen with a parsed .xlsx:
 //   POST /functions/v1/bulk_create_members
-//   body: { rows: [{ name, email, phone?, affiliation? }] }
+//   body: { rows: [{ name, email, phone?, affiliation? }], role? }
+//
+// role is 'panel_member' (default) or 'session_incharge'. Creating Session
+// Incharge accounts is Chair-only, and works exactly like the panelist invite:
+// an account with a generated password, handed over as a credentials sheet.
 //
 // For each row we:
 //   1. Create an auth user with a random 10-char password and email_confirm: true.
@@ -87,11 +91,11 @@ function json(body: unknown, status = 200): Response {
   if (profErr) return json({ error: profErr.message }, 500);
   const role = myProfile?.role;
   if (role !== 'organizing_chair' && role !== 'session_incharge') {
-    return json({ error: 'Only a Chair or Session Incharge can add panel members.' }, 403);
+    return json({ error: 'Only a Chair or Session Incharge can add accounts.' }, 403);
   }
 
   // Parse body.
-  let body: { rows?: unknown };
+  let body: { rows?: unknown; role?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -101,7 +105,16 @@ function json(body: unknown, status = 200): Response {
     return json({ error: 'rows must be a non-empty array.' }, 400);
   }
   if (body.rows.length > 200) {
-    return json({ error: 'At most 200 members per upload.' }, 400);
+    return json({ error: 'At most 200 accounts per upload.' }, 400);
+  }
+
+  // Which kind of account to create.
+  const newRole = body.role == null ? 'panel_member' : String(body.role);
+  if (newRole !== 'panel_member' && newRole !== 'session_incharge') {
+    return json({ error: 'role must be panel_member or session_incharge.' }, 400);
+  }
+  if (newRole === 'session_incharge' && role !== 'organizing_chair') {
+    return json({ error: 'Only the Organizing Chair can add Session Incharges.' }, 403);
   }
 
   const rows: MemberRow[] = [];
@@ -123,6 +136,17 @@ function json(body: unknown, status = 200): Response {
   const admin = createClient(url, service, { auth: { persistSession: false } });
   const out: Credential[] = [];
 
+  // For a Session Incharge, pre-register the email in staff_invites first: the
+  // on_auth_user_created trigger reads that table and assigns the role itself,
+  // and the staff_invites_sync trigger fixes up anyone who already signed up.
+  if (newRole === 'session_incharge') {
+    const { error: invErr } = await admin.from('staff_invites').upsert(
+      rows.map((r) => ({ email: r.email, role: 'session_incharge', invited_by: me.user.id })),
+      { onConflict: 'email' },
+    );
+    if (invErr) return json({ error: invErr.message }, 500);
+  }
+
   for (const r of rows) {
     const password = randomPassword(10);
     const { data, error } = await admin.auth.admin.createUser({
@@ -141,11 +165,13 @@ function json(body: unknown, status = 200): Response {
       if (msg.includes('already') || msg.includes('exists') || msg.includes('registered')) {
         // Make sure the existing profile has panel_member role so the Incharge
         // can bind them to a panel.
-        await admin
-          .from('profiles')
-          .update({ role: 'panel_member' })
-          .eq('email', r.email)
-          .is('role', null);
+        if (newRole === 'panel_member') {
+          await admin
+            .from('profiles')
+            .update({ role: 'panel_member' })
+            .eq('email', r.email)
+            .is('role', null);
+        }
         out.push({ email: r.email, password: '', name: r.name, status: 'exists' });
       } else {
         out.push({ email: r.email, password: '', name: r.name, status: 'error', note: error.message });
@@ -158,7 +184,7 @@ function json(body: unknown, status = 200): Response {
     if (userId) {
       const { error: upErr } = await admin
         .from('profiles')
-        .update({ role: 'panel_member', full_name: r.name, phone: r.phone })
+        .update({ role: newRole, full_name: r.name, phone: r.phone })
         .eq('id', userId);
       if (upErr) {
         out.push({ email: r.email, password, name: r.name, status: 'error', note: upErr.message });

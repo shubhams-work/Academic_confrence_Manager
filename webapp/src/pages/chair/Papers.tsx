@@ -1,9 +1,11 @@
 ﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { FileText, Plus, Search } from 'lucide-react';
+import { FilePlus2, FileSpreadsheet, FileText, Plus, Search } from 'lucide-react';
 import { usePapers, useTracks } from '../../lib/queries';
 import type { Paper } from '../../lib/types';
 import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { Sheet } from '../../components/Sheet';
 import { EmptyState } from '../../components/EmptyState';
 import { Input } from '../../components/Field';
 import { TrackTabs } from '../../components/TrackTabs';
@@ -17,6 +19,8 @@ export default function Papers() {
   const papers = usePapers(null);
   const [trackId, setTrackId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
+  // Add paper -> choose one-at-a-time or bulk .xlsx upload.
+  const [addOpen, setAddOpen] = useState(false);
 
   const trackList = useMemo(
     () => [...(tracks.data ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -80,7 +84,7 @@ export default function Papers() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {papers.data != null ? `${all.length} paper${all.length === 1 ? '' : 's'}` : ''}
         </p>
-        <Button variant="primary" className="hidden md:inline-flex" onClick={() => openForm(null)}>
+        <Button variant="primary" className="hidden md:inline-flex" onClick={() => setAddOpen(true)}>
           <Plus size={16} />
           Add paper
         </Button>
@@ -118,13 +122,54 @@ export default function Papers() {
       {/* Phone FAB (the bottom tab bar sits at 56 px + safe area) */}
       <button
         type="button"
-        onClick={() => openForm(null)}
+        onClick={() => setAddOpen(true)}
         aria-label="Add paper"
         className="md:hidden fixed bottom-24 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-primary text-primary-fg pl-4 pr-5 min-h-14 text-sm font-semibold shadow-lg hover:bg-primary active:bg-primary"
       >
         <Plus size={20} />
         Add paper
       </button>
+
+      {/* How do you want to add papers? */}
+      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="Add papers">
+        <div className="flex flex-col gap-3">
+          <Card
+            className="cursor-pointer p-4 hover:border-primary/60"
+            onClick={() => {
+              setAddOpen(false);
+              openForm(null);
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <FilePlus2 size={20} className="mt-0.5 shrink-0 text-primary" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">Add one paper</p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Type in the Paper ID, title, track and authors yourself.
+                </p>
+              </div>
+            </div>
+          </Card>
+          <Card
+            className="cursor-pointer p-4 hover:border-primary/60"
+            onClick={() => {
+              setAddOpen(false);
+              navigate('/papers/import');
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <FileSpreadsheet size={20} className="mt-0.5 shrink-0 text-primary" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">Bulk upload from Excel</p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Upload an .xlsx with many papers and their authors at once. A template is
+                  provided, and re-uploading updates existing papers.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </Sheet>
     </div>
   );
 }

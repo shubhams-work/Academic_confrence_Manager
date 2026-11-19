@@ -155,6 +155,9 @@ export default function PanelDetail(): React.JSX.Element {
               </Chip>
             )}
           </div>
+          {panel.createdByName != null && panel.createdByName !== '' && (
+            <p className="mt-1.5 text-sm text-ink-muted">Created by {panel.createdByName}</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} disabled={locked}>

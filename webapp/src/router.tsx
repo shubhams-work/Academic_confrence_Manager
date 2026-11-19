@@ -19,18 +19,18 @@ export interface Destination {
 
 const chairNav: Destination[] = [
   { path: '/papers', label: 'Papers', icon: FileText },
-  { path: '/import', label: 'Import', icon: Upload },
+  { path: '/import', label: 'Review scores', icon: Upload },
   { path: '/panels', label: 'Panels', icon: Users },
-  { path: '/members', label: 'Members', icon: UserPlus },
+  { path: '/members', label: 'Panelists', icon: UserPlus },
   { path: '/results', label: 'Results', icon: Trophy },
-  { path: '/staff', label: 'Staff', icon: UserCog },
+  { path: '/staff', label: 'Session I.C', icon: UserCog },
 ];
 
 // Scores are chair-only, so the incharge has no Results tab (the route guard
 // also redirects them away from /results if reached directly).
 const inchargeNav: Destination[] = [
   { path: '/panels', label: 'Panels', icon: Users },
-  { path: '/members', label: 'Members', icon: UserPlus },
+  { path: '/members', label: 'Panelists', icon: UserPlus },
 ];
 
 const memberNav: Destination[] = [{ path: '/my-papers', label: 'My Papers', icon: ClipboardCheck }];
@@ -68,6 +68,7 @@ const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const Papers = lazy(() => import('./pages/chair/Papers'));
 const PaperForm = lazy(() => import('./pages/chair/PaperForm'));
 const Import = lazy(() => import('./pages/chair/Import'));
+const PaperImport = lazy(() => import('./pages/chair/PaperImport'));
 const Staff = lazy(() => import('./pages/chair/Staff'));
 const Panels = lazy(() => import('./pages/panels/Panels'));
 const PanelDetail = lazy(() => import('./pages/panels/PanelDetail'));
@@ -212,6 +213,14 @@ export const routes: RouteObject[] = [
             element: (
               <LazyPage>
                 <PaperForm />
+              </LazyPage>
+            ),
+          },
+          {
+            path: '/papers/import',
+            element: (
+              <LazyPage>
+                <PaperImport />
               </LazyPage>
             ),
           },

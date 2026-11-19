@@ -4,7 +4,7 @@
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { CheckCircle2, ChevronRight, Clock, Lock, MapPin, Plus, Users } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Clock, Lock, MapPin, Plus, UserCog, Users } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { Chip } from '../../components/Chip';
@@ -133,6 +133,12 @@ function PanelCard({ panel, track, onOpen }: { panel: Panel; track: Track | unde
             <p className="mt-1.5 flex items-center gap-1 truncate text-sm text-ink-muted">
               <MapPin size={14} className="shrink-0" aria-hidden />
               {where}
+            </p>
+          )}
+          {panel.createdByName != null && panel.createdByName !== '' && (
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-ink-muted">
+              <UserCog size={13} className="shrink-0" aria-hidden />
+              Created by {panel.createdByName}
             </p>
           )}
         </div>

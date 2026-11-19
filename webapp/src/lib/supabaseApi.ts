@@ -120,6 +120,8 @@ interface PanelRow {
   track_id: number;
   venue?: string | null;
   scheduled_at?: string | null;
+  created_by?: string | null;
+  creator?: { full_name?: string | null; email?: string | null } | null;
   panel_members?: PanelMemberRow[] | null;
   papers?: PaperRow[] | null;
 }
@@ -210,12 +212,21 @@ function mapPanelMember(j: PanelMemberRow): PanelMember {
 }
 
 function mapPanel(j: PanelRow): Panel {
+  const creator = j.creator ?? null;
   return {
     id: j.id,
     name: j.name,
     trackId: j.track_id,
     venue: j.venue ?? null,
     scheduledAt: j.scheduled_at ?? null,
+    createdById: j.created_by ?? null,
+    // Null for a panel member: RLS only lets staff read other profiles.
+    createdByName:
+      creator == null
+        ? null
+        : creator.full_name != null && creator.full_name.trim() !== ''
+          ? creator.full_name
+          : (creator.email ?? null),
     members: (j.panel_members ?? []).slice().sort((a, b) => a.position - b.position).map(mapPanelMember),
     papers: (j.papers ?? []).map(mapPaper).sort((a, b) => cmpText(a.pid, b.pid)),
   };
@@ -247,7 +258,9 @@ const paperCols =
   'id,pid,title,track_id,review_score,panel_id,authors(name,affiliation,email,phone,position),panels(name,venue,scheduled_at)';
 
 const panelCols =
-  'id,name,track_id,venue,scheduled_at,panel_members(id,position,name,email,phone,affiliation,profile_id),' +
+  'id,name,track_id,venue,scheduled_at,created_by,' +
+  'creator:profiles!panels_created_by_fkey(full_name,email),' +
+  'panel_members(id,position,name,email,phone,affiliation,profile_id),' +
   'papers(id,pid,title,track_id,review_score,panel_id,authors(name,affiliation,email,phone,position),' +
   'evaluations(id,paper_id,panel_member_id,status,comments,evaluation_scores(criterion_id,marks)))';
 
@@ -480,10 +493,10 @@ export class SupabaseApi implements Api {
     return (data ?? []).map((j: ProfileRow) => mapProfile(j));
   }
 
-  async bulkCreateMembers(rows: MemberDraft[]): Promise<BulkCreateMembersResult> {
+  async bulkCreateMembers(rows: MemberDraft[], role: AppRole = 'panel_member'): Promise<BulkCreateMembersResult> {
     const { data, error } = await getSupabase().functions.invoke<BulkCreateMembersResult>(
       'bulk_create_members',
-      { body: { rows } },
+      { body: { rows, role } },
     );
     if (error) throw new Error(error.message);
     if (!data) throw new Error('No response from bulk_create_members.');
