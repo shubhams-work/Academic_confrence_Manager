@@ -265,6 +265,17 @@ export function useBulkCreateMembers(): UseMutationResult<
   });
 }
 
+/** Replaces a panelist's password and returns the new one (shown once). */
+export function useResetPanelistPassword(): UseMutationResult<
+  { email: string; password: string },
+  Error,
+  string
+> {
+  return useMutation({
+    mutationFn: (email: string) => getApi().resetPanelistPassword(email),
+  });
+}
+
 /** Every panelist, including those on no panel. */
 export function usePanelists() {
   return useQuery({ queryKey: ['panelists'], queryFn: () => getApi().allPanelists() });

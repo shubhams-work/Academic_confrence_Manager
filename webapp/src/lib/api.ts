@@ -82,6 +82,12 @@ export interface Api {
   availablePanelMembers(): Promise<PanelMemberSuggestion[]>;
   /** Every panelist, whether or not they are on a panel, with their panels. */
   allPanelists(): Promise<PanelistSummary[]>;
+  /**
+   * Generates a new password for a panelist and returns it. Supabase only
+   * stores a hash, so an existing password can never be shown - it can only be
+   * replaced. The old password stops working immediately.
+   */
+  resetPanelistPassword(email: string): Promise<{ email: string; password: string }>;
 }
 
 export interface MemberDraft {

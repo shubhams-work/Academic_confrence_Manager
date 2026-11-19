@@ -3,11 +3,16 @@
 // panel and opens its detail page. Port of ../lib/features/panels/panels_page.dart.
 
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
   Lock,
   Mail,
   MapPin,
@@ -26,10 +31,12 @@ import { Input } from '../../components/Field';
 import { ListSkeleton, QueryError } from '../../components/QueryError';
 import { TrackTabs } from '../../components/TrackTabs';
 import { friendlyError } from '../../lib/api';
-import { usePanelists, usePanels, useTracks } from '../../lib/queries';
+import { useResetPanelistPassword, usePanelists, usePanels, useTracks } from '../../lib/queries';
 import type { Panel, PanelistSummary, Track } from '../../lib/types';
 import PanelForm from './PanelForm';
 import { Sheet } from '../../components/Sheet';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { useToast } from '../../components/Toast';
 import { AccountCreator } from './parts/AccountCreator';
 import { panelProgress, venueLine } from './parts/util';
 
@@ -238,62 +245,151 @@ function PanelistsView({
           icon={Users}
           message={
             query.trim() === ''
-              ? 'No panelists yet. Create their accounts from the Panelists tab.'
+              ? 'No panelists yet. Use Add panelist to create their accounts.'
               : 'No panelist matches that search.'
           }
         />
       ) : (
         <div className="grid gap-2 md:grid-cols-2">
           {rows.map((r) => (
-            <Card key={r.email}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{r.name}</p>
-                  {r.affiliation != null && r.affiliation !== '' && (
-                    <p className="truncate text-sm text-ink-muted">{r.affiliation}</p>
-                  )}
-                </div>
-                {r.signedUp ? (
-                  <Chip tone="green" icon={CheckCircle2}>
-                    Signed up
-                  </Chip>
-                ) : (
-                  <Chip tone="amber" icon={Clock}>
-                    Not signed up
-                  </Chip>
-                )}
-              </div>
-
-              <a
-                href={`mailto:${r.email}`}
-                className="mt-2 flex min-h-8 items-center gap-1.5 truncate text-sm text-primary"
-              >
-                <Mail size={14} className="shrink-0" aria-hidden />
-                {r.email}
-              </a>
-              {r.phone != null && r.phone !== '' && (
-                <a href={`tel:${r.phone}`} className="flex min-h-8 items-center gap-1.5 text-sm text-primary">
-                  <Phone size={14} className="shrink-0" aria-hidden />
-                  {r.phone}
-                </a>
-              )}
-
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {r.panels.length === 0 ? (
-                  <Chip tone="gray">Idle — no panel</Chip>
-                ) : (
-                  r.panels.map((pp) => (
-                    <Chip key={pp.id} tone="indigo">
-                      {pp.name}
-                    </Chip>
-                  ))
-                )}
-              </div>
-            </Card>
+            <PanelistCard key={r.email} row={r} />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/** One panelist: contact details, their panels, and their sign-in password. */
+function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
+  const toast = useToast();
+  const reset = useResetPanelistPassword();
+  const qc = useQueryClient();
+  const [shown, setShown] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const password = row.password ?? null;
+
+  const copy = async (value: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success('Password copied');
+    } catch {
+      toast.error('Could not copy — select the text instead.');
+    }
+  };
+
+  const doReset = (): void => {
+    reset.mutate(row.email, {
+      onSuccess: (out) => {
+        setConfirmReset(false);
+        setShown(true);
+        void qc.invalidateQueries({ queryKey: ['panelists'] });
+        toast.success(`New password for ${out.email}: ${out.password}`);
+      },
+      onError: (e) => {
+        setConfirmReset(false);
+        toast.error(friendlyError(e));
+      },
+    });
+  };
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{row.name}</p>
+          {row.affiliation != null && row.affiliation !== '' && (
+            <p className="truncate text-sm text-ink-muted">{row.affiliation}</p>
+          )}
+        </div>
+        {row.signedUp ? (
+          <Chip tone="green" icon={CheckCircle2}>
+            Signed up
+          </Chip>
+        ) : (
+          <Chip tone="amber" icon={Clock}>
+            Not signed up
+          </Chip>
+        )}
+      </div>
+
+      <a
+        href={`mailto:${row.email}`}
+        className="mt-2 flex min-h-8 items-center gap-1.5 truncate text-sm text-primary"
+      >
+        <Mail size={14} className="shrink-0" aria-hidden />
+        {row.email}
+      </a>
+      {row.phone != null && row.phone !== '' && (
+        <a href={`tel:${row.phone}`} className="flex min-h-8 items-center gap-1.5 text-sm text-primary">
+          <Phone size={14} className="shrink-0" aria-hidden />
+          {row.phone}
+        </a>
+      )}
+
+      {/* Password last issued by the app. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-line px-2 py-1.5">
+        <KeyRound size={14} className="shrink-0 text-ink-muted" aria-hidden />
+        {password == null ? (
+          <span className="text-xs text-ink-muted">No password on record — reset to issue one</span>
+        ) : (
+          <>
+            <span className="font-mono text-sm tabular-nums" aria-label="Password">
+              {shown ? password : '••••••••••'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShown((v) => !v)}
+              className="min-h-8 rounded px-1 text-ink-muted hover:text-ink"
+              aria-label={shown ? 'Hide password' : 'Show password'}
+            >
+              {shown ? <EyeOff size={15} aria-hidden /> : <Eye size={15} aria-hidden />}
+            </button>
+            <button
+              type="button"
+              onClick={() => void copy(password)}
+              className="min-h-8 rounded px-1 text-ink-muted hover:text-ink"
+              aria-label="Copy password"
+            >
+              <Copy size={15} aria-hidden />
+            </button>
+          </>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          loading={reset.isPending}
+          onClick={() => setConfirmReset(true)}
+        >
+          Reset
+        </Button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {row.panels.length === 0 ? (
+          <Chip tone="gray">Idle — no panel</Chip>
+        ) : (
+          row.panels.map((pp) => (
+            <Chip key={pp.id} tone="indigo">
+              {pp.name}
+            </Chip>
+          ))
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={confirmReset}
+        title={`Reset the password for ${row.name}?`}
+        message="A new password is generated and shown here. Their current password stops working immediately, so only do this if they need a new one."
+        confirmLabel="Reset password"
+        destructive
+        busy={reset.isPending}
+        onConfirm={doReset}
+        onCancel={() => setConfirmReset(false)}
+      />
+    </Card>
   );
 }
 

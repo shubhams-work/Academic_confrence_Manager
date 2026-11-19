@@ -191,6 +191,16 @@ function json(body: unknown, status = 200): Response {
         continue;
       }
     }
+    // Panelist passwords are stored so staff can look them up later; staff
+    // account passwords are deliberately not (see 0005_panelist_credentials).
+    if (newRole === 'panel_member') {
+      await admin.from('panelist_credentials').upsert({
+        email: r.email,
+        password,
+        issued_at: new Date().toISOString(),
+        issued_by: me.user.id,
+      });
+    }
     out.push({ email: r.email, password, name: r.name, status: 'created' });
   }
 

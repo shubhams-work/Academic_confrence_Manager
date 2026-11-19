@@ -517,21 +517,31 @@ export class SupabaseApi implements Api {
    */
   async allPanelists(): Promise<PanelistSummary[]> {
     const sb = getSupabase();
-    const [profs, pms] = await Promise.all([
+    const [profs, pms, creds] = await Promise.all([
       sb.from('profiles').select('id, email, full_name, phone').eq('role', 'panel_member'),
       sb
         .from('panel_members')
         .select('id, name, email, phone, affiliation, profile_id, panel_id, panels(id, name, track_id)'),
+      sb.from('panelist_credentials').select('email, password'),
     ]);
     if (profs.error) throw new Error(profs.error.message);
     if (pms.error) throw new Error(pms.error.message);
+    if (creds.error) throw new Error(creds.error.message);
 
     const byEmail = new Map<string, PanelistSummary>();
     const take = (email: string): PanelistSummary => {
       const key = email.trim().toLowerCase();
       let row = byEmail.get(key);
       if (row == null) {
-        row = { name: '', email: key, phone: null, affiliation: null, signedUp: false, panels: [] };
+        row = {
+          name: '',
+          email: key,
+          phone: null,
+          affiliation: null,
+          signedUp: false,
+          password: null,
+          panels: [],
+        };
         byEmail.set(key, row);
       }
       return row;
@@ -572,11 +582,27 @@ export class SupabaseApi implements Api {
       }
     }
 
+    for (const c of (creds.data ?? []) as { email: string; password: string }[]) {
+      const row = byEmail.get(c.email.trim().toLowerCase());
+      if (row != null) row.password = c.password;
+    }
+
     for (const row of byEmail.values()) {
       if (row.name === '') row.name = row.email;
       row.panels.sort((a, b) => a.name.localeCompare(b.name));
     }
     return [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async resetPanelistPassword(email: string): Promise<{ email: string; password: string }> {
+    const { data, error } = await getSupabase().functions.invoke<{
+      email: string;
+      password: string;
+      error?: string;
+    }>('reset_panelist_password', { body: { email: email.trim().toLowerCase() } });
+    if (error) throw new Error(error.message);
+    if (!data || !data.password) throw new Error(data?.error ?? 'Could not reset the password.');
+    return { email: data.email, password: data.password };
   }
 
   async availablePanelMembers(): Promise<PanelMemberSuggestion[]> {
