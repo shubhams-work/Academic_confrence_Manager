@@ -13,8 +13,9 @@ Flutter app has been removed. See [`AGENT_BRIEF.md`](AGENT_BRIEF.md) for the bui
 | Session Incharge | Panels `/panels`, Members `/members` |
 | Panel Member | My Papers `/my-papers` → Score `/my-papers/:paperId` |
 
-Signed-in users with no role land on `/not-authorized`. Password-recovery links
-(`?token_hash=…&type=recovery`) go to `/reset-password`. A URL a role cannot use
+Signed-in users with no role land on `/not-authorized`. Invite and
+password-recovery links (`?token_hash=…&type=invite|recovery`) go to
+`/reset-password`, and an account with no password yet cannot leave it. A URL a role cannot use
 redirects to that role's home. Scores are chair-only, so the incharge has no
 Results tab.
 
@@ -99,17 +100,21 @@ download them.
 - Presentation = average of the **submitted** member totals (null if none),
   rounded to 2 decimals.
 - **Final (/100) = Presentation + Review score (/50)**, where a missing part
-  counts as 0. Papers are densely ranked descending within each track.
+  counts as 0. Papers are densely ranked descending within each track; a tie
+  goes to the higher Review score, then the higher Presentation score, and a
+  full tie shares a rank.
 - Open tracks read the `paper_scores` view; finalized tracks read `track_results`.
 
-These rules must stay in sync with `../supabase/migrations/0001_init.sql`.
+These rules must stay in sync with the SQL in `../supabase/migrations/` — the
+ranking key lives in `0006_results_tiebreaker.sql`.
 
 ## Backend / database
 
-The database is defined in `../supabase/migrations/`. Apply **both** migrations in
-order (`0001_init.sql` creates the schema; `0002_scores_chair_only.sql` restricts
-scores and finalized results to the Chair). Do not invent new tables or RPCs —
-the client expects the ones defined there.
+The database is defined in `../supabase/migrations/`. Apply **every** migration
+in order: `0001_init.sql` creates the schema; later files restrict scores to the
+Chair, add the training reset, and add the results
+tie-breakers. Do not invent new tables or RPCs — the client expects the ones
+defined there.
 
 ## Deployment
 

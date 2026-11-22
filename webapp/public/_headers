@@ -1,3 +1,13 @@
+# Security headers for every route. worker-src blob: is needed because the
+# Excel import library starts a Web Worker from a blob URL, and connect-src
+# must list the Supabase project URL.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://rpsscznhpfypnlnmbsda.supabase.co; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
 # Immutable, content-hashed build assets
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

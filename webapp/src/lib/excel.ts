@@ -124,16 +124,20 @@ export function membersTemplate(): Promise<void> {
   ]);
 }
 
-/** Credentials export after a successful bulk-create. */
-export function credentialsWorkbook(
-  rows: { email: string; password: string; name: string; status: string }[],
+/**
+ * Invite export after a successful bulk-create. There is no password to hand
+ * out any more - each person sets their own from the emailed invite - so what
+ * staff keep is the per-row outcome and any error note.
+ */
+export function invitesWorkbook(
+  rows: { email: string; name: string; status: string; note?: string }[],
 ): Promise<void> {
-  return downloadWorkbook('panel-member-credentials.xlsx', [
+  return downloadWorkbook('panel-member-invites.xlsx', [
     {
-      name: 'Credentials',
+      name: 'Invites',
       rows: [
-        ['Name', 'Email', 'Password', 'Status'],
-        ...rows.map((r) => [r.name, r.email, r.password, r.status]),
+        ['Name', 'Email', 'Status', 'Note'],
+        ...rows.map((r) => [r.name, r.email, r.status, r.note ?? '']),
       ],
     },
   ]);

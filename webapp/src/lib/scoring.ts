@@ -23,12 +23,58 @@ export function finalScore(presentation: number | null, review: number | null): 
   return roundTo((presentation ?? 0) + (review ?? 0), 2);
 }
 
-/** Dense rank, highest score first: [80, 75, 75, 60] -> [1, 2, 2, 3]. */
+/** The three numbers that decide a paper's rank within its track. */
+export interface RankableScore {
+  finalScore: number;
+  reviewScore: number | null;
+  presentationScore: number | null;
+}
+
+/** Same ordering as the `paper_scores` view: final, review, presentation; nulls last. */
+function compareRankable(a: RankableScore, b: RankableScore): number {
+  if (a.finalScore !== b.finalScore) return b.finalScore - a.finalScore;
+
+  if (a.reviewScore !== b.reviewScore) {
+    if (a.reviewScore == null) return 1;
+    if (b.reviewScore == null) return -1;
+    return b.reviewScore - a.reviewScore;
+  }
+
+  if (a.presentationScore !== b.presentationScore) {
+    if (a.presentationScore == null) return 1;
+    if (b.presentationScore == null) return -1;
+    return b.presentationScore - a.presentationScore;
+  }
+
+  return 0;
+}
+
+/**
+ * Dense rank using the `paper_scores` key: final (/100), then review (/50),
+ * then presentation (/50). Nulls sort below real values, so a missing review
+ * ranks below a review of 0. Papers equal on all three share a rank.
+ * Returns ranks in the same order as the input.
+ */
+export function denseRankRows(rows: readonly RankableScore[]): number[] {
+  const ordered = rows.map((row, index) => ({ row, index }));
+  ordered.sort((a, b) => compareRankable(a.row, b.row));
+
+  const ranks = new Array<number>(rows.length);
+  let rank = 0;
+  let previous: RankableScore | null = null;
+  for (const { row, index } of ordered) {
+    if (previous == null || compareRankable(previous, row) !== 0) rank += 1;
+    ranks[index] = rank;
+    previous = row;
+  }
+  return ranks;
+}
+
+/** Dense rank on final score alone: [80, 75, 75, 60] -> [1, 2, 2, 3]. */
 export function denseRank(scores: number[]): number[] {
-  const distinct = [...new Set(scores)].sort((a, b) => b - a);
-  const rankOf = new Map<number, number>();
-  distinct.forEach((s, i) => rankOf.set(s, i + 1));
-  return scores.map((s) => rankOf.get(s)!);
+  return denseRankRows(
+    scores.map((finalScore) => ({ finalScore, reviewScore: null, presentationScore: null })),
+  );
 }
 
 /** Formats 40 as "40" and 40.5 as "40.5". */

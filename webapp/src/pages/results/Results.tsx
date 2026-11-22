@@ -1,4 +1,4 @@
-﻿// Track-wise results (Chair + Session Incharge). Open tracks show live scores
+﻿// Track-wise results (Chair only). Open tracks show live scores
 // from the `paper_scores` view; finalized tracks show the frozen
 // `track_results` snapshot. Chair can finalize / reopen. Export to .xlsx.
 // Port of ../lib/features/results/results_page.dart.
@@ -173,6 +173,9 @@ export default function Results(): React.JSX.Element {
                 )}
                 <p className="mt-1 text-sm text-ink-muted">
                   Final (/100) = Presentation (average of submitted panel totals, /50) + Review (/50)
+                </p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Tie-break: higher Review (/50), then Presentation (/50).
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

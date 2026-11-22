@@ -31,8 +31,6 @@ export interface AuthController {
   subscribe(cb: () => void): () => void;
   getSnapshot(): AuthSnapshot;
   signIn(email: string, password: string): Promise<void>;
-  /** Returns true if the user must confirm their email before signing in. */
-  signUp(input: { email: string; password: string; fullName: string; phone: string }): Promise<boolean>;
   sendPasswordReset(email: string): Promise<void>;
   setNewPassword(password: string): Promise<void>;
   signOut(): Promise<void>;
@@ -74,10 +72,29 @@ class SupabaseAuthController implements AuthController {
       email: this.session?.user?.email ?? null,
       profile: this.profile,
       role: this.profile?.role ?? null,
-      recoveringPassword: this.recovering,
+      recoveringPassword: this.recovering || this.needsPassword(),
       error: this.error,
       notice: this.notice,
     };
+  }
+
+  /**
+   * True when this account has never had a password set on it.
+   *
+   * `recovering` alone is not enough to gate the reset screen: it lives in
+   * memory, while verifyOtp has already written a real session to storage. A
+   * reload or an edited URL would therefore drop the gate and leave an invited
+   * user inside the app with no password - unable to sign in ever again, since
+   * there is nothing to type. inviteUserByEmail stamps password_set: false on
+   * the account, setNewPassword flips it to true, and auth.users is the one
+   * place a reload cannot clear.
+   *
+   * Accounts that predate this (the first Chair, anyone already signed up)
+   * have no such key at all, so `=== false` deliberately leaves them alone.
+   */
+  private needsPassword(): boolean {
+    const meta = this.session?.user?.user_metadata as { password_set?: unknown } | undefined;
+    return meta?.password_set === false;
   }
 
   private notify(): void {
@@ -94,20 +111,30 @@ class SupabaseAuthController implements AuthController {
 
   getSnapshot = (): AuthSnapshot => this.snap;
 
-  /** Handles links from Supabase emails: `?token_hash=…&type=email|recovery`. */
+  /** Handles links from Supabase emails: `?token_hash=…&type=invite|recovery|email`. */
   private async handleEmailLink(): Promise<void> {
     const params = new URLSearchParams(window.location.search);
     const hash = params.get('token_hash');
     const type = params.get('type');
     if (!hash || !type) return;
-    const otpType: 'recovery' | 'signup' | 'email' =
-      type === 'recovery' ? 'recovery' : type === 'signup' ? 'signup' : 'email';
-    if (otpType === 'recovery') this.recovering = true;
+    const otpType: 'recovery' | 'invite' | 'signup' | 'email' =
+      type === 'recovery'
+        ? 'recovery'
+        : type === 'invite'
+          ? 'invite'
+          : type === 'signup'
+            ? 'signup'
+            : 'email';
+    // An invited account has no password yet, so it needs the same forced
+    // "Set a new password" detour as a recovery link — otherwise the one-time
+    // invite link expires and the account can never be signed into.
+    const needsPassword = otpType === 'recovery' || otpType === 'invite';
+    if (needsPassword) this.recovering = true;
     const { error } = await getSupabase().auth.verifyOtp({ token_hash: hash, type: otpType });
     if (error) {
       this.recovering = false;
       this.notice = 'This link is invalid or has expired. Please sign in, or request a new link.';
-    } else if (otpType !== 'recovery') {
+    } else if (!needsPassword) {
       this.notice = 'Email confirmed — you are signed in.';
     }
     // Drop the one-time token from the address bar.
@@ -149,19 +176,6 @@ class SupabaseAuthController implements AuthController {
     if (error) throw new Error(authMessage(error.message));
   }
 
-  async signUp(input: { email: string; password: string; fullName: string; phone: string }): Promise<boolean> {
-    const { data, error } = await getSupabase().auth.signUp({
-      email: input.email.trim().toLowerCase(),
-      password: input.password,
-      options: {
-        data: { full_name: input.fullName.trim(), phone: input.phone.trim() },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    if (error) throw new Error(authMessage(error.message));
-    return data.session == null;
-  }
-
   async sendPasswordReset(email: string): Promise<void> {
     const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: window.location.origin,
@@ -170,8 +184,17 @@ class SupabaseAuthController implements AuthController {
   }
 
   async setNewPassword(password: string): Promise<void> {
-    const { error } = await getSupabase().auth.updateUser({ password });
+    // The data flag is what releases the gate above, so it has to be written
+    // in the same call that sets the password - never in a follow-up that
+    // could fail on its own and strand the account.
+    const { data, error } = await getSupabase().auth.updateUser({
+      password,
+      data: { password_set: true },
+    });
     if (error) throw new Error(authMessage(error.message));
+    if (data.user != null && this.session != null) {
+      this.session = { ...this.session, user: data.user };
+    }
     this.recovering = false;
     this.notify();
   }
@@ -190,7 +213,6 @@ class SupabaseAuthController implements AuthController {
 function authMessage(m: string): string {
   if (/invalid login credentials/i.test(m)) return 'Wrong email or password.';
   if (/email not confirmed/i.test(m)) return 'Please confirm your email first — open the link we sent you.';
-  if (/user already registered/i.test(m)) return 'An account with this email already exists. Sign in instead.';
   if (/rate limit|too many/i.test(m)) return 'Too many attempts. Please wait a minute and try again.';
   return m;
 }
@@ -207,7 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
 export interface Auth extends AuthSnapshot {
   signIn(email: string, password: string): Promise<void>;
-  signUp(input: { email: string; password: string; fullName: string; phone: string }): Promise<boolean>;
   sendPasswordReset(email: string): Promise<void>;
   setNewPassword(password: string): Promise<void>;
   signOut(): Promise<void>;
@@ -224,7 +245,6 @@ export function useAuth(): Auth {
     () => ({
       ...snap,
       signIn: (email: string, password: string) => ctrl.signIn(email, password),
-      signUp: (input: { email: string; password: string; fullName: string; phone: string }) => ctrl.signUp(input),
       sendPasswordReset: (email: string) => ctrl.sendPasswordReset(email),
       setNewPassword: (password: string) => ctrl.setNewPassword(password),
       signOut: () => ctrl.signOut(),

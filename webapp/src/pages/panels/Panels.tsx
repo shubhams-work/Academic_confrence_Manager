@@ -3,15 +3,12 @@
 // panel and opens its detail page. Port of ../lib/features/panels/panels_page.dart.
 
 import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import {
   CheckCircle2,
   ChevronRight,
   Clock,
   Copy,
-  Eye,
-  EyeOff,
   KeyRound,
   Lock,
   Mail,
@@ -34,7 +31,7 @@ import { TrackTabs } from '../../components/TrackTabs';
 import { friendlyError, NeedsForceError } from '../../lib/api';
 import {
   useDeletePanelist,
-  useResetPanelistPassword,
+  usePanelistSigninLink,
   usePanelists,
   usePanels,
   useTracks,
@@ -268,15 +265,13 @@ function PanelistsView({
   );
 }
 
-/** One panelist: contact details, their panels, and their sign-in password. */
+/** One panelist: contact details, their panels, and their sign-in access. */
 function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
   const toast = useToast();
   const auth = useAuth();
-  const reset = useResetPanelistPassword();
+  const signinLink = usePanelistSigninLink();
   const remove = useDeletePanelist();
-  const qc = useQueryClient();
-  const [shown, setShown] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmResend, setConfirmResend] = useState(false);
   // null = closed. `force` is set after the server refuses a delete that would
   // erase submitted scores, so the second confirm states exactly what is lost.
   const [confirmDelete, setConfirmDelete] = useState<{ force: boolean; warning?: string } | null>(
@@ -287,30 +282,41 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
   // and in the edge function.
   const isChair = auth.role === 'organizing_chair';
 
-  const password = row.password ?? null;
-
   const copy = async (value: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(value);
-      toast.success('Password copied');
+      toast.success('Sign-in link copied — send it to them directly');
     } catch {
-      toast.error('Could not copy — select the text instead.');
+      toast.error('Could not copy — try again.');
     }
   };
 
-  const doReset = (): void => {
-    reset.mutate(row.email, {
-      onSuccess: (out) => {
-        setConfirmReset(false);
-        setShown(true);
-        void qc.invalidateQueries({ queryKey: ['panelists'] });
-        toast.success(`New password for ${out.email}: ${out.password}`);
+  /**
+   * Copy mode returns the link only to the Chair; email mode sends it without
+   * exposing it to this browser.
+   */
+  const issueLink = (mode: 'email' | 'copy'): void => {
+    signinLink.mutate(
+      { email: row.email, mode },
+      {
+        onSuccess: (out) => {
+          if (mode === 'email') {
+            setConfirmResend(false);
+            toast.success(`Sign-in link emailed to ${out.email}`);
+          } else {
+            if (out.link == null) {
+              toast.error('Could not issue a sign-in link.');
+              return;
+            }
+            void copy(out.link);
+          }
+        },
+        onError: (e) => {
+          if (mode === 'email') setConfirmResend(false);
+          toast.error(friendlyError(e));
+        },
       },
-      onError: (e) => {
-        setConfirmReset(false);
-        toast.error(friendlyError(e));
-      },
-    });
+    );
   };
 
   const doDelete = (force: boolean): void => {
@@ -376,43 +382,39 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
         </a>
       )}
 
-      {/* Password last issued by the app. */}
+      {/*
+        Panelists set their own password from an emailed link, so there is no
+        password here to show. What staff need is a way to get them in when the
+        email did not arrive: copy a one-time link, or send it again.
+      */}
       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-line px-2 py-1.5">
         <KeyRound size={14} className="shrink-0 text-ink-muted" aria-hidden />
-        {password == null ? (
-          <span className="text-xs text-ink-muted">No password on record — reset to issue one</span>
-        ) : (
-          <>
-            <span className="font-mono text-sm tabular-nums" aria-label="Password">
-              {shown ? password : '••••••••••'}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShown((v) => !v)}
-              className="min-h-8 rounded px-1 text-ink-muted hover:text-ink"
-              aria-label={shown ? 'Hide password' : 'Show password'}
-            >
-              {shown ? <EyeOff size={15} aria-hidden /> : <Eye size={15} aria-hidden />}
-            </button>
-            <button
-              type="button"
-              onClick={() => void copy(password)}
-              className="min-h-8 rounded px-1 text-ink-muted hover:text-ink"
-              aria-label="Copy password"
+        <span className="text-xs text-ink-muted">
+          {row.signedUp
+            ? 'Sets their own password — they can use Forgot password any time'
+            : 'Invited, not signed in yet'}
+        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          {isChair && (
+            <Button
+              variant="outline"
+              size="sm"
+              loading={signinLink.isPending}
+              onClick={() => issueLink('copy')}
             >
               <Copy size={15} aria-hidden />
-            </button>
-          </>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          loading={reset.isPending}
-          onClick={() => setConfirmReset(true)}
-        >
-          Reset
-        </Button>
+              Copy link
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            loading={signinLink.isPending}
+            onClick={() => setConfirmResend(true)}
+          >
+            Email link
+          </Button>
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -440,14 +442,13 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
       </div>
 
       <ConfirmDialog
-        open={confirmReset}
-        title={`Reset the password for ${row.name}?`}
-        message="A new password is generated and shown here. Their current password stops working immediately, so only do this if they need a new one."
-        confirmLabel="Reset password"
-        destructive
-        busy={reset.isPending}
-        onConfirm={doReset}
-        onCancel={() => setConfirmReset(false)}
+        open={confirmResend}
+        title={`Email a new sign-in link to ${row.name}?`}
+        message={`Supabase emails ${row.email} a one-time link to set a password. Any link sent earlier stops working.`}
+        confirmLabel="Send link"
+        busy={signinLink.isPending}
+        onConfirm={() => issueLink('email')}
+        onCancel={() => setConfirmResend(false)}
       />
 
       <ConfirmDialog
@@ -457,7 +458,7 @@ function PanelistCard({ row }: { row: PanelistSummary }): React.JSX.Element {
         }
         message={
           confirmDelete?.warning ??
-          `This deletes their sign-in account, their stored password and their seat on ${
+          `This deletes their sign-in account and their seat on ${
             row.panels.length === 0
               ? 'any panel'
               : row.panels.map((pp) => pp.name).join(', ')

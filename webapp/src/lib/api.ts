@@ -76,19 +76,22 @@ export interface Api {
   resetTrainingData(confirmPhrase: string): Promise<ResetSummary>;
 
   // ---------- Panel members (bulk) ----------
-  /** Creates sign-in accounts. `role` defaults to 'panel_member'; 'session_incharge' is chair-only. */
-  bulkCreateMembers(rows: MemberDraft[], role?: AppRole): Promise<BulkCreateMembersResult>;
+  /** Invites sign-in accounts. `role` defaults to 'panel_member'; 'session_incharge' is chair-only. */
+  bulkCreateMembers(
+    rows: MemberDraft[],
+    role?: AppRole,
+    onProgress?: (doneRows: number, totalRows: number) => void,
+  ): Promise<BulkCreateMembersResult>;
   /** Already-onboarded members, for autofill when assigning to a panel. */
   availablePanelMembers(): Promise<PanelMemberSuggestion[]>;
   /** Every panelist, whether or not they are on a panel, with their panels. */
   allPanelists(): Promise<PanelistSummary[]>;
   /**
-   * Generates a new password for a panelist and returns it. Supabase only
-   * stores a hash, so an existing password can never be shown - it can only be
-   * replaced. The old password stops working immediately.
+   * Emails a one-time sign-in link to the panelist, or returns a link for the
+   * Chair to copy and hand over.
    */
-  resetPanelistPassword(email: string): Promise<{ email: string; password: string }>;
-  /** Chair only. Deletes the account, its stored password and every panel seat. */
+  panelistSigninLink(email: string, mode: 'email' | 'copy'): Promise<PanelistSigninLink>;
+  /** Chair only. Deletes the account and every panel seat. */
   deletePanelist(email: string, force?: boolean): Promise<DeletePanelistResult>;
 }
 
@@ -106,19 +109,24 @@ export interface PanelMemberSuggestion {
   affiliation: string;
 }
 
-export interface MemberCredential {
+export interface MemberInvite {
   email: string;
-  password: string;
   name: string;
-  status: 'created' | 'exists' | 'error';
+  status: 'invited' | 'exists' | 'error';
   note?: string;
 }
 
 export interface BulkCreateMembersResult {
-  created: number;
+  invited: number;
   skipped: number;
   errors: number;
-  credentials: MemberCredential[];
+  invites: MemberInvite[];
+}
+
+export interface PanelistSigninLink {
+  email: string;
+  link?: string;
+  emailed?: boolean;
 }
 
 let instance: Api | null = null;

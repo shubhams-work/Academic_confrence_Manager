@@ -132,11 +132,6 @@ export interface PanelistSummary {
   affiliation?: string | null;
   /** They have an account and can sign in. */
   signedUp: boolean;
-  /**
-   * The password last issued by the app, if one was recorded. Null when the
-   * account predates the feature or the password was changed elsewhere.
-   */
-  password?: string | null;
   panels: { id: string; name: string; trackId: number }[];
 }
 

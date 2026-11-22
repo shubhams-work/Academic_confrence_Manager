@@ -48,10 +48,10 @@ Roles (`profiles.role`): `organizing_chair`, `session_incharge`, `panel_member`.
 | session_incharge | Panels `/panels` (+ `/panels/:id`), Results `/results` |
 | panel_member | My Papers `/my-papers` (+ `/my-papers/:paperId`) |
 
-Routing guard: still loading → spinner. Signed out → `/login`. Signed in with no role → `/not-authorized`. A URL the role can't use → that role's home. Password-recovery link → `/reset-password`.
+Routing guard: still loading → spinner. Signed out → `/login`. Signed in with no role → `/not-authorized`. A URL the role can't use → that role's home. An invite or password-recovery link → `/reset-password`, and nothing else is reachable until a password is set.
 
 Screen behaviour:
-- **Login**: Sign in / Sign up toggle. Sign-up asks for full name, phone, email and password (≥ 8 characters). "Forgot password" sends a reset link. If sign-up needs email confirmation, tell the user to check their inbox.
+- **Login**: email + password only — there is no sign-up, accounts exist only by invitation. "Forgot password" emails a link that opens **Set a new password**. Tell the user to check their spam folder if it does not arrive.
 - **Not authorized**: shows the user's email, explains that the organizers must add exactly this email, and offers "Check again" (refresh profile) and Sign out.
 - **Reset password**: new password + repeat.
 - **Papers (Chair)**: track filter chips ("All" plus the 5 tracks; finalized tracks show a lock), search by ID, title or author. Each card shows PID · title, author names, and chips for the track, review score (or "Review: —" in orange) and panel (or "No panel"). Tap → edit form. A "+" button adds a paper.
@@ -80,7 +80,7 @@ Screen behaviour:
 ## Scoring rules (must match the SQL)
 - 5 criteria × 10 marks = Presentation total /50 per member: Technical Content & Depth, Originality & Innovation, Presentation Skills, Slide Quality, Q&A / Understanding of Work (codes `technical, originality, presentation, slides, qa`).
 - Presentation = the **average of submitted member totals** (null if none), rounded to 2 decimals.
-- Final (/100) = Presentation + Review, where a missing part counts as 0. **Dense rank** descending within each track.
+- Final (/100) = Presentation + Review, where a missing part counts as 0. **Dense rank** descending within each track; a final-score tie goes to the higher Review score, then the higher Presentation score, and a full tie shares a rank.
 - Tracks: Computing, Semiconductor, Mechatronics, Intelligent Systems, Communications.
 - Format scores as `40` for whole numbers and `39.5` otherwise; null shows "—".
 

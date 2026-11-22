@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@
 import {
   getApi,
   type BulkCreateMembersResult,
+  type PanelistSigninLink,
   type DeletePanelistResult,
   type MemberDraft,
 } from './api';
@@ -252,12 +253,23 @@ export function useResetTrainingData(): UseMutationResult<ResetSummary, Error, s
 export function useBulkCreateMembers(): UseMutationResult<
   BulkCreateMembersResult,
   Error,
-  { rows: MemberDraft[]; role?: AppRole }
+  {
+    rows: MemberDraft[];
+    role?: AppRole;
+    onProgress?: (doneRows: number, totalRows: number) => void;
+  }
 > {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ rows, role }: { rows: MemberDraft[]; role?: AppRole }) =>
-      getApi().bulkCreateMembers(rows, role),
+    mutationFn: ({
+      rows,
+      role,
+      onProgress,
+    }: {
+      rows: MemberDraft[];
+      role?: AppRole;
+      onProgress?: (doneRows: number, totalRows: number) => void;
+    }) => getApi().bulkCreateMembers(rows, role, onProgress),
     onSuccess: () =>
       invalidateLists(qc, [
         'staff-profiles',
@@ -270,14 +282,17 @@ export function useBulkCreateMembers(): UseMutationResult<
   });
 }
 
-/** Replaces a panelist's password and returns the new one (shown once). */
-export function useResetPanelistPassword(): UseMutationResult<
-  { email: string; password: string },
+/**
+ * Emails a one-time sign-in link, or returns a fresh link for the Chair to copy.
+ */
+export function usePanelistSigninLink(): UseMutationResult<
+  PanelistSigninLink,
   Error,
-  string
+  { email: string; mode: 'email' | 'copy' }
 > {
   return useMutation({
-    mutationFn: (email: string) => getApi().resetPanelistPassword(email),
+    mutationFn: ({ email, mode }: { email: string; mode: 'email' | 'copy' }) =>
+      getApi().panelistSigninLink(email, mode),
   });
 }
 

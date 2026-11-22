@@ -1,0 +1,72 @@
+<!--
+  Supabase → Authentication → Emails → "Reset password"
+
+  Sent three ways, all landing on the same "Set a new password" screen:
+    1. a panelist uses "Forgot password" on the login page;
+    2. staff press "Email link" on a panelist's card;
+    3. an invite expired and the person needs a fresh way in.
+
+  Built for email clients, not browsers: a centred table, inline styles, no
+  external images and no CSS that Outlook drops. Keep it that way when editing.
+-->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f5f7;padding:24px 0;">
+  <tr>
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:520px;background:#ffffff;border:1px solid #e3e5e8;border-radius:12px;padding:32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1d21;">
+        <tr>
+          <td>
+            <p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">
+              COSMIC 2026
+            </p>
+            <h1 style="margin:0 0 20px;font-size:21px;line-height:1.3;font-weight:600;">
+              Set a new password
+            </h1>
+
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">
+              Use the button below to choose a new password for the COSMIC 2026
+              evaluation portal. It signs you in at the same time.
+            </p>
+
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+              <tr>
+                <td align="center" style="border-radius:8px;background:#4f46e5;">
+                  <a href="{{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=recovery"
+                     style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">
+                    Set a new password
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 24px;font-size:13px;line-height:1.6;color:#6b7280;">
+              If the button does not work, copy this address into your browser:<br>
+              <span style="color:#4f46e5;word-break:break-all;">{{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=recovery</span>
+            </p>
+
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="background:#f8f9fa;border-radius:8px;padding:16px;margin:0 0 24px;">
+              <tr>
+                <td style="font-size:13px;line-height:1.6;color:#4b5563;">
+                  <strong style="color:#1a1d21;">A few things to know</strong><br>
+                  • Sign in afterwards with this email address: <strong>{{ .Email }}</strong><br>
+                  • This link can only be used once, and it expires.<br>
+                  • Your current password keeps working until you set a new one here.
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0;padding-top:20px;border-top:1px solid #e3e5e8;font-size:13px;line-height:1.6;color:#6b7280;">
+              Please do not reply to this message — this mailbox is not monitored.
+              For help signing in, write to
+              <a href="mailto:REPLACE-WITH-A-REAL-CONTACT@sahyadri.edu.in" style="color:#4f46e5;">REPLACE-WITH-A-REAL-CONTACT@sahyadri.edu.in</a>.
+            </p>
+            <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">
+              If you did not ask for this, you can ignore it — your password stays as it is.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

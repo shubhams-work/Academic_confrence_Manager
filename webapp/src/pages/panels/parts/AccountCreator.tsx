@@ -1,11 +1,11 @@
 ﻿import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { CloudUpload, Download, FolderOpen, UserPlus, Users } from 'lucide-react';
-import { useBulkCreateMembers } from '../../../lib/queries';
+import { ClipboardCopy, CloudUpload, Download, FolderOpen, UserPlus, Users } from 'lucide-react';
+import { useBulkCreateMembers, usePanelistSigninLink } from '../../../lib/queries';
 import { friendlyError, type BulkCreateMembersResult, type MemberDraft } from '../../../lib/api';
 import type { AppRole } from '../../../lib/types';
 import { parseMembers, type MemberImportResult } from '../../../lib/membersImport';
 import { PHONE_LENGTH, phoneDigits, phoneError } from '../../../lib/phone';
-import { credentialsWorkbook, membersTemplate, readSheetRows } from '../../../lib/excel';
+import { invitesWorkbook, membersTemplate, readSheetRows } from '../../../lib/excel';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
 import { Chip } from '../../../components/Chip';
@@ -13,6 +13,7 @@ import { Field, Input } from '../../../components/Field';
 import { Sheet } from '../../../components/Sheet';
 import { useToast } from '../../../components/Toast';
 import { IssuesList } from '../../chair/parts/IssuesList';
+import { useAuth } from '../../../lib/auth';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -30,6 +31,8 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
   const toast = useToast();
   const bulk = useBulkCreateMembers();
+  const signinLink = usePanelistSigninLink();
+  const auth = useAuth();
 
   const isIncharge = role === 'session_incharge';
   const one = isIncharge ? 'Session Incharge' : 'panel member';
@@ -40,6 +43,9 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
   const [parsed, setParsed] = useState<MemberImportResult | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<BulkCreateMembersResult | null>(null);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  const [uploading, setUploading] = useState(false);
+  const [copyingEmail, setCopyingEmail] = useState<string | null>(null);
 
   // Manual single-member form.
   const [name, setName] = useState('');
@@ -82,23 +88,43 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
 
   const doUpload = (): void => {
     if (parsed == null || parsed.rows.length === 0) return;
-    bulk.mutate({ rows: parsed.rows, role }, {
+    setUploadProgress({ done: 0, total: parsed.rows.length });
+    setUploading(true);
+    bulk.mutate({ rows: parsed.rows, role, onProgress: (done, total) => setUploadProgress({ done, total }) }, {
       onSuccess: (out) => {
+        setUploading(false);
         setResult(out);
         clear();
         if (out.errors > 0) {
-          toast.error(`${out.created} created, ${out.skipped} already existed, ${out.errors} failed`);
+          toast.error(`${out.invited} invited, ${out.skipped} already existed, ${out.errors} failed`);
         } else {
-          toast.success(`${out.created} accounts created, ${out.skipped} already existed`);
+          toast.success(`${out.invited} invites sent, ${out.skipped} already existed`);
         }
       },
-      onError: (e) => toast.error(friendlyError(e)),
+      onError: (e) => {
+        setUploading(false);
+        toast.error(friendlyError(e));
+      },
     });
   };
 
-  const downloadCreds = async (): Promise<void> => {
+  const downloadInvites = async (): Promise<void> => {
     if (result == null) return;
-    await download(() => credentialsWorkbook(result.credentials));
+    await download(() => invitesWorkbook(result.invites));
+  };
+
+  const copyLink = async (email: string): Promise<void> => {
+    setCopyingEmail(email);
+    try {
+      const out = await signinLink.mutateAsync({ email, mode: 'copy' });
+      if (out.link == null || out.link === '') throw new Error('Could not issue a sign-in link.');
+      await navigator.clipboard.writeText(out.link);
+      toast.success('Sign-in link copied');
+    } catch (error) {
+      toast.error(friendlyError(error));
+    } finally {
+      setCopyingEmail(null);
+    }
   };
 
   const clearManual = (): void => {
@@ -131,14 +157,14 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
     bulk.mutate({ rows: [draft], role }, {
       onSuccess: (out) => {
         setResult(out);
-        const cred = out.credentials[0];
-        if (cred?.status === 'created') {
-          toast.success(`Account created for ${trimmedEmail}`);
+        const inv = out.invites[0];
+        if (inv?.status === 'invited') {
+          toast.success(`Invite sent to ${trimmedEmail}`);
           clearManual();
-        } else if (cred?.status === 'exists') {
+        } else if (inv?.status === 'exists') {
           toast.error(`${trimmedEmail} already has an account`);
         } else {
-          toast.error(cred?.note ?? 'Could not create the account');
+          toast.error(inv?.note ?? 'Could not invite the account');
         }
       },
       onError: (err) => toast.error(friendlyError(err)),
@@ -304,9 +330,11 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
                   </p>
                 )}
                 <div className="mt-3 flex flex-col sm:flex-row sm:justify-end">
-                  <Button className="w-full sm:w-auto" onClick={doUpload} loading={bulk.isPending} disabled={busy}>
+                  <Button className="w-full sm:w-auto" onClick={doUpload} loading={uploading} disabled={busy}>
                     <CloudUpload size={16} />
-                    Create {parsed.rows.length} accounts
+                    {uploading
+                      ? `Inviting ${uploadProgress.done} of ${uploadProgress.total}…`
+                      : `Create ${parsed.rows.length} accounts`}
                   </Button>
                 </div>
               </>
@@ -315,23 +343,23 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
         )}
       </Card>
 
-      {/* Post-upload result dialog with the generated credentials. */}
+      {/* Post-upload result dialog: invite outcomes and Chair-only fresh links. */}
       <Sheet
         open={result != null}
         onClose={() => setResult(null)}
         title={
           result == null
             ? ''
-            : `Created ${result.created} · Skipped ${result.skipped}${result.errors > 0 ? ` · Failed ${result.errors}` : ''}`
+            : `Invited ${result.invited} · Skipped ${result.skipped}${result.errors > 0 ? ` · Failed ${result.errors}` : ''}`
         }
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={() => setResult(null)}>
               Close
             </Button>
-            <Button onClick={() => void downloadCreds()}>
+            <Button onClick={() => void downloadInvites()}>
               <Download size={16} />
-              Download credentials
+              Download invite list
             </Button>
           </div>
         }
@@ -339,34 +367,56 @@ export function AccountCreator({ role }: { role: AppRole }): React.JSX.Element {
         {result && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink-muted">
-              Download the credentials file now — passwords will not be shown again. Share each
-              row with the person whose email appears in it.
+              Links are emailed so each person can set their own password. The Organizing Chair
+              can copy a fresh one-time link for an account, and anyone can use{' '}
+              <strong>Forgot password</strong> on the login screen.
             </p>
             <div className="overflow-x-auto rounded-lg border border-line">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs font-medium uppercase tracking-wide text-ink-muted">
                     <th className="py-2 px-3">Email</th>
-                    <th className="py-2 px-3">Password</th>
                     <th className="py-2 px-3">Status</th>
+                    {auth.role === 'organizing_chair' && role === 'panel_member' && (
+                      <th className="py-2 px-3">Sign-in link</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {result.credentials.map((c) => (
+                  {result.invites.map((c) => (
                     <tr key={c.email}>
                       <td className="py-2 px-3 whitespace-nowrap">{c.email}</td>
-                      <td className="py-2 px-3 font-mono tabular-nums">
-                        {c.password === '' ? '—' : c.password}
-                      </td>
                       <td className="py-2 px-3">
-                        {c.status === 'created' && <Chip tone="green">created</Chip>}
+                        {c.status === 'invited' && <Chip tone="green">invited</Chip>}
                         {c.status === 'exists' && <Chip tone="gray">already existed</Chip>}
                         {c.status === 'error' && (
-                          <span title={c.note ?? ''}>
+                          <div className="flex flex-col items-start gap-1">
                             <Chip tone="red">error</Chip>
-                          </span>
+                            {c.note != null && c.note !== '' && (
+                              <span className="max-w-60 text-xs leading-snug text-red-600 dark:text-red-400">
+                                {c.note}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
+                      {auth.role === 'organizing_chair' && role === 'panel_member' && (
+                        <td className="py-2 px-3">
+                          {c.status === 'invited' || c.status === 'exists' ? (
+                            <Button
+                              variant="outline"
+                              loading={copyingEmail === c.email}
+                              onClick={() => void copyLink(c.email)}
+                              aria-label={`Copy the sign-in link for ${c.email}`}
+                            >
+                              <ClipboardCopy size={16} />
+                              Copy link
+                            </Button>
+                          ) : (
+                            <span className="text-ink-muted">—</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

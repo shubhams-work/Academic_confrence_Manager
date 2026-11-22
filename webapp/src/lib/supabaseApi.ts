@@ -22,12 +22,14 @@ import type {
   StaffInvite,
   Track,
 } from './types';
-import { NeedsForceError } from './api';
+import { NeedsForceError, friendlyError } from './api';
+import { chunk, mergeBulkResults } from './batch';
 import type {
   Api,
   BulkCreateMembersResult,
   DeletePanelistResult,
-  MemberCredential,
+  MemberInvite,
+  PanelistSigninLink,
   MemberDraft,
   PanelMemberSuggestion,
 } from './api';
@@ -80,11 +82,20 @@ interface CriterionRow {
 }
 
 interface AuthorRow {
+  id: string;
   name: string;
   affiliation?: string | null;
+  position?: number | null;
+  author_contacts?: AuthorContactRow | AuthorContactRow[] | null;
+}
+
+interface AuthorContactRow {
   email?: string | null;
   phone?: string | null;
-  position?: number | null;
+}
+
+interface PaperReviewRow {
+  review_score?: number | null;
 }
 
 interface EvalScoreRow {
@@ -106,7 +117,7 @@ interface PaperRow {
   pid: string;
   title: string;
   track_id: number;
-  review_score?: number | null;
+  paper_reviews?: PaperReviewRow | PaperReviewRow[] | null;
   panel_id?: string | null;
   authors?: AuthorRow[] | null;
   panels?: { name: string | null; venue: string | null; scheduled_at: string | null } | null;
@@ -191,14 +202,23 @@ function mapEvaluation(j: EvaluationRow): Evaluation {
 function mapPaper(j: PaperRow): Paper {
   const authors: Author[] = [...(j.authors ?? [])]
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map((a) => ({ name: a.name, affiliation: a.affiliation ?? null, email: a.email ?? null, phone: a.phone ?? null }));
+    .map((a) => {
+      const contacts = firstEmbed(a.author_contacts);
+      return {
+        name: a.name,
+        affiliation: a.affiliation ?? null,
+        email: contacts?.email ?? null,
+        phone: contacts?.phone ?? null,
+      };
+    });
   const panel = j.panels ?? null;
+  const review = firstEmbed(j.paper_reviews);
   return {
     id: j.id,
     pid: j.pid,
     title: j.title,
     trackId: j.track_id,
-    reviewScore: j.review_score ?? null,
+    reviewScore: review?.review_score ?? null,
     panelId: j.panel_id ?? null,
     panelName: panel?.name ?? null,
     panelVenue: panel?.venue ?? null,
@@ -206,6 +226,11 @@ function mapPaper(j: PaperRow): Paper {
     authors,
     evaluations: (j.evaluations ?? []).map(mapEvaluation),
   };
+}
+
+/** PostgREST has returned one-to-one embeds as either objects or arrays. */
+function firstEmbed<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
 function mapPanelMember(j: PanelMemberRow): PanelMember {
@@ -308,13 +333,19 @@ async function invokeFunction<T>(name: string, body: Record<string, unknown>): P
 }
 
 const paperCols =
-  'id,pid,title,track_id,review_score,panel_id,authors(name,affiliation,email,phone,position),panels(name,venue,scheduled_at)';
+  'id,pid,title,track_id,paper_reviews(review_score),panel_id,' +
+  'authors(id,name,affiliation,position,author_contacts(email,phone)),panels(name,venue,scheduled_at)';
+
+// Panel members only need paper and author names to score their assigned work.
+const memberPaperCols =
+  'id,pid,title,track_id,panel_id,authors(id,name,affiliation,position),panels(name,venue,scheduled_at)';
 
 const panelCols =
   'id,name,track_id,venue,scheduled_at,created_by,' +
   'creator:profiles!panels_created_by_fkey(full_name,email),' +
   'panel_members(id,position,name,email,phone,affiliation,profile_id),' +
-  'papers(id,pid,title,track_id,review_score,panel_id,authors(name,affiliation,email,phone,position),' +
+  'papers(id,pid,title,track_id,paper_reviews(review_score),panel_id,' +
+  'authors(id,name,affiliation,position,author_contacts(email,phone)),' +
   'evaluations(id,paper_id,panel_member_id,status,comments,evaluation_scores(criterion_id,marks)))';
 
 export class SupabaseApi implements Api {
@@ -350,7 +381,7 @@ export class SupabaseApi implements Api {
   async myPapers(): Promise<Paper[]> {
     const { data, error } = await getSupabase()
       .from('papers')
-      .select(`${paperCols},evaluations(id,paper_id,panel_member_id,status,comments,evaluation_scores(criterion_id,marks))`)
+      .select(`${memberPaperCols},evaluations(id,paper_id,panel_member_id,status,comments,evaluation_scores(criterion_id,marks))`)
       .not('panel_id', 'is', null)
       .order('pid');
     if (error) throw new Error(error.message);
@@ -546,14 +577,43 @@ export class SupabaseApi implements Api {
     return (data ?? []).map((j: ProfileRow) => mapProfile(j));
   }
 
-  async bulkCreateMembers(rows: MemberDraft[], role: AppRole = 'panel_member'): Promise<BulkCreateMembersResult> {
-    const data = await invokeFunction<BulkCreateMembersResult>('bulk_create_members', { rows, role });
-    return {
-      created: data.created,
-      skipped: data.skipped,
-      errors: data.errors,
-      credentials: (data.credentials ?? []) as MemberCredential[],
-    };
+  async bulkCreateMembers(
+    rows: MemberDraft[],
+    role: AppRole = 'panel_member',
+    onProgress?: (doneRows: number, totalRows: number) => void,
+  ): Promise<BulkCreateMembersResult> {
+    const parts: BulkCreateMembersResult[] = [];
+    const chunks = chunk(rows, 20);
+    for (const [index, rowsChunk] of chunks.entries()) {
+      const offset = index * 20;
+      try {
+        const data = await invokeFunction<BulkCreateMembersResult>('bulk_create_members', { rows: rowsChunk, role });
+        parts.push({
+          invited: data.invited,
+          skipped: data.skipped,
+          errors: data.errors,
+          invites: (data.invites ?? []) as MemberInvite[],
+        });
+        onProgress?.(offset + rowsChunk.length, rows.length);
+      } catch (err) {
+        // Nothing has gone through yet, so this is a whole-request failure (not
+        // signed in, not allowed, function misconfigured). Surface the real
+        // reason through the normal error path rather than as N identical row
+        // errors telling the user to retry something a retry cannot fix.
+        if (parts.length === 0) throw err;
+        const reason = friendlyError(err);
+        const notAttempted = rows.slice(offset).map((row) => ({
+          email: row.email,
+          name: row.name,
+          status: 'error' as const,
+          note: `Not attempted (${reason}). Upload these rows again — existing accounts are skipped.`,
+        }));
+        parts.push({ invited: 0, skipped: 0, errors: notAttempted.length, invites: notAttempted });
+        onProgress?.(rows.length, rows.length);
+        break;
+      }
+    }
+    return mergeBulkResults(parts);
   }
 
   /**
@@ -564,16 +624,14 @@ export class SupabaseApi implements Api {
    */
   async allPanelists(): Promise<PanelistSummary[]> {
     const sb = getSupabase();
-    const [profs, pms, creds] = await Promise.all([
+    const [profs, pms] = await Promise.all([
       sb.from('profiles').select('id, email, full_name, phone').eq('role', 'panel_member'),
       sb
         .from('panel_members')
         .select('id, name, email, phone, affiliation, profile_id, panel_id, panels(id, name, track_id)'),
-      sb.from('panelist_credentials').select('email, password'),
     ]);
     if (profs.error) throw new Error(profs.error.message);
     if (pms.error) throw new Error(pms.error.message);
-    if (creds.error) throw new Error(creds.error.message);
 
     const byEmail = new Map<string, PanelistSummary>();
     const take = (email: string): PanelistSummary => {
@@ -586,7 +644,6 @@ export class SupabaseApi implements Api {
           phone: null,
           affiliation: null,
           signedUp: false,
-          password: null,
           panels: [],
         };
         byEmail.set(key, row);
@@ -629,11 +686,6 @@ export class SupabaseApi implements Api {
       }
     }
 
-    for (const c of (creds.data ?? []) as { email: string; password: string }[]) {
-      const row = byEmail.get(c.email.trim().toLowerCase());
-      if (row != null) row.password = c.password;
-    }
-
     for (const row of byEmail.values()) {
       if (row.name === '') row.name = row.email;
       row.panels.sort((a, b) => a.name.localeCompare(b.name));
@@ -641,13 +693,13 @@ export class SupabaseApi implements Api {
     return [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async resetPanelistPassword(email: string): Promise<{ email: string; password: string }> {
-    const data = await invokeFunction<{ email: string; password: string; error?: string }>(
-      'reset_panelist_password',
-      { email: email.trim().toLowerCase() },
+  async panelistSigninLink(email: string, mode: 'email' | 'copy'): Promise<PanelistSigninLink> {
+    const data = await invokeFunction<PanelistSigninLink & { error?: string }>(
+      'panelist_signin_link',
+      { email: email.trim().toLowerCase(), mode },
     );
-    if (!data.password) throw new Error(data.error ?? 'Could not reset the password.');
-    return { email: data.email, password: data.password };
+    if (mode === 'copy' && !data.link) throw new Error(data.error ?? 'Could not issue a sign-in link.');
+    return { email: data.email, link: data.link, emailed: data.emailed };
   }
 
   async deletePanelist(email: string, force = false): Promise<DeletePanelistResult> {
