@@ -16,6 +16,10 @@
 /index.html
   Cache-Control: no-cache
 
+# Deploy marker polled by the running app to detect a new version
+/version.json
+  Cache-Control: no-cache
+
 # icons / manifest change rarely but are small
 /favicon.svg
   Cache-Control: public, max-age=86400

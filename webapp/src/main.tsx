@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router';
 import { router } from './router';
 import { AuthProvider } from './lib/auth';
+import { AutoReload } from './lib/autoReload';
 import { ToastProvider } from './components/Toast';
 import '@fontsource-variable/inter';
 import './index.css';
@@ -21,6 +22,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <AutoReload />
       <ToastProvider>
         <AuthProvider>
           <RouterProvider router={router} />
